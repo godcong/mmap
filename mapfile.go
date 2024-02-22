@@ -16,9 +16,9 @@ import (
 
 // MapFile reads/writes a memory-mapped file.
 type MapFile struct {
-	data   []byte
-	off    int
-	rdOnly bool
+	data     []byte
+	off      int
+	readOnly bool
 
 	fd *os.File
 }
@@ -43,13 +43,13 @@ func (f *MapFile) Stat() (os.FileInfo, error) {
 	return f.fd.Stat()
 }
 
-func (f *MapFile) rflag() bool {
-	return true
-}
+// func (f *MapFile) rflag() bool {
+// 	return true
+// }
 
-func (f *MapFile) wflag() bool {
-	return !f.rdOnly
-}
+// func (f *MapFile) wflag() bool {
+// 	return !f.readOnly
+// }
 
 // Read implements the io.Reader interface.
 func (f *MapFile) Read(p []byte) (int, error) {
@@ -57,9 +57,6 @@ func (f *MapFile) Read(p []byte) (int, error) {
 		return 0, os.ErrInvalid
 	}
 
-	if !f.rflag() {
-		return 0, errBadFD
-	}
 	if f.off >= len(f.data) {
 		return 0, io.EOF
 	}
@@ -74,9 +71,6 @@ func (f *MapFile) ReadByte() (byte, error) {
 		return 0, os.ErrInvalid
 	}
 
-	if !f.rflag() {
-		return 0, errBadFD
-	}
 	if f.off >= len(f.data) {
 		return 0, io.EOF
 	}
@@ -91,14 +85,11 @@ func (f *MapFile) ReadAt(p []byte, off int64) (int, error) {
 		return 0, os.ErrInvalid
 	}
 
-	if !f.rflag() {
-		return 0, errBadFD
-	}
 	if f.data == nil {
-		return 0, errors.New("mmap: closed")
+		return 0, errors.New("MapFile: closed")
 	}
 	if off < 0 || int64(len(f.data)) < off {
-		return 0, fmt.Errorf("mmap: invalid ReadAt offset %d", off)
+		return 0, fmt.Errorf("MapFile: invalid ReadAt offset %d", off)
 	}
 	n := copy(p, f.data[off:])
 	if n < len(p) {
@@ -113,7 +104,7 @@ func (f *MapFile) Write(p []byte) (int, error) {
 		return 0, os.ErrInvalid
 	}
 
-	if !f.wflag() {
+	if f.readOnly {
 		return 0, errBadFD
 	}
 	if f.off >= len(f.data) {
@@ -133,7 +124,7 @@ func (f *MapFile) WriteByte(c byte) error {
 		return os.ErrInvalid
 	}
 
-	if !f.wflag() {
+	if f.readOnly {
 		return errBadFD
 	}
 	if f.off >= len(f.data) {
@@ -150,14 +141,14 @@ func (f *MapFile) WriteAt(p []byte, off int64) (int, error) {
 		return 0, os.ErrInvalid
 	}
 
-	if !f.wflag() {
+	if f.readOnly {
 		return 0, errBadFD
 	}
 	if f.data == nil {
-		return 0, errors.New("mmap: closed")
+		return 0, errors.New("MapFile: closed")
 	}
 	if off < 0 || int64(len(f.data)) < off {
-		return 0, fmt.Errorf("mmap: invalid WriteAt offset %d", off)
+		return 0, fmt.Errorf("MapFile: invalid WriteAt offset %d", off)
 	}
 	n := copy(f.data[off:], p)
 	if n < len(p) {
@@ -179,10 +170,10 @@ func (f *MapFile) Seek(offset int64, whence int) (int64, error) {
 	case io.SeekEnd:
 		f.off = len(f.data) - int(offset)
 	default:
-		return 0, fmt.Errorf("mmap: invalid whence")
+		return 0, fmt.Errorf("MapFile: invalid whence")
 	}
 	if f.off < 0 {
-		return 0, fmt.Errorf("mmap: negative position")
+		return 0, fmt.Errorf("MapFile: negative position")
 	}
 	return int64(f.off), nil
 }
@@ -195,21 +186,27 @@ var errBadFD = errors.New("bad file descriptor")
 
 // Open memory-maps the named file for reading.
 func Open(filename string) (*MapFile, error) {
-	return openFile(filename, os.O_RDONLY, 0)
+	return openFile(filename, os.O_RDONLY, 0, 0)
 }
 
 // OpenFile memory-maps the named file for reading/writing, depending on
 // the flag value.
 func OpenFile(filename string, flag int, mode os.FileMode) (*MapFile, error) {
-	return openFile(filename, flag, mode)
+	return openFile(filename, flag, mode, pageSize)
 }
 
-func openFile(filename string, mode int, perm os.FileMode) (*MapFile, error) {
+// OpenFileS memory-maps the named file for reading/writing, depending on
+// the flag value.
+func OpenFileS(filename string, flag int, mode os.FileMode, size int) (*MapFile, error) {
+	return openFile(filename, flag, mode, size)
+}
+
+func openFile(filename string, mode int, perm os.FileMode, size int) (*MapFile, error) {
 	if len(filename) == 0 {
 		return nil, syscall.ENOENT
 	}
 
-	f, err := os.OpenFile(filename, mode, perm)
+	f, err := os.OpenFile(filename, mode|os.O_CREATE, perm)
 	if err != nil {
 		return nil, err
 	}
@@ -219,35 +216,43 @@ func openFile(filename string, mode int, perm os.FileMode) (*MapFile, error) {
 		return nil, err
 	}
 
-	size := fi.Size()
-	//
-	// if size == 0 {
-	// 	return &MapFile{rdOnly: mode&os.O_RDONLY == os.O_RDONLY}, nil
-	// }
-	// if size < 0 {
-	// 	return nil, fmt.Errorf("mmap: file %q has negative size", filename)
-	// }
-	// if size != int64(int(size)) {
-	// 	return nil, fmt.Errorf("mmap: file %q is too large", filename)
-	// }
-
+	fsize := fi.Size()
 	prot := PROT_READ
 	rdOnly := true
 	switch mode & (os.O_RDONLY | os.O_WRONLY | os.O_RDWR) {
 	case os.O_RDONLY:
+		// fmt.Println("MapFile: read only")
 		prot = PROT_READ
 	case os.O_WRONLY:
+		// fmt.Println("MapFile: write only")
 		prot = PROT_WRITE
 		rdOnly = false
 	case os.O_RDWR:
+		// fmt.Println("MapFile: read write")
 		prot = PROT_READ | PROT_WRITE
 		rdOnly = false
 	}
-	data, err := Mmap(int(f.Fd()), 0, int(size), prot, MAP_SHARED)
+
+	// fmt.Println("MapFile: file", filename, "mode", fmt.Sprintf("0x%x", mode), "modeis", mode&os.O_RDONLY, "read only", rdOnly)
+	if fsize == 0 && rdOnly {
+		// fmt.Println("MapFile: empty file", filename)
+		return &MapFile{readOnly: rdOnly}, nil
+	}
+	if fsize < 0 {
+		return nil, fmt.Errorf("MapFile: file %q has negative size", filename)
+	}
+	if fsize != int64(int(fsize)) {
+		return nil, fmt.Errorf("MapFile: file %q is too large", filename)
+	}
+
+	if int(fsize) > size {
+		size = int(fsize)
+	}
+	data, err := Mmap(int(f.Fd()), 0, size, prot, MAP_SHARED)
 	fd := &MapFile{
-		data:   data,
-		fd:     f,
-		rdOnly: rdOnly,
+		data:     data,
+		fd:       f,
+		readOnly: rdOnly,
 	}
 	runtime.SetFinalizer(fd, (*MapFile).Close)
 	return fd, nil

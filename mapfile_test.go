@@ -14,7 +14,6 @@ import (
 )
 
 func TestOpen(t *testing.T) {
-
 	const filename = "mapfile_test.go"
 	for _, tc := range []struct {
 		name string
@@ -43,7 +42,7 @@ func TestOpen(t *testing.T) {
 				t.Fatalf("could not stat file: %+v", err)
 			}
 
-			if !r.rflag() {
+			if !r.readOnly {
 				t.Fatal("not open for reading")
 			}
 
@@ -229,12 +228,17 @@ func TestWrite(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			fname := filepath.Join(tmp, tc.name+".txt")
-			err := os.WriteFile(fname, []byte("hello world!\nbye.\n"), 0644)
+			w, err := OpenFileS(fname, tc.flags, 0644, len([]byte("hello world!\nbye.\n")))
+			if err != nil {
+				t.Fatalf("could not open file: %+v", err)
+			}
+			_, err = w.Write([]byte("hello world!\nbye.\n"))
+			// err := os.WriteFile(fname, []byte("hello world!\nbye.\n"), 0644)
 			if err != nil {
 				t.Fatalf("could not seed file: %+v", err)
 			}
 
-			f, err := OpenFile(fname, tc.flags, 0755)
+			f, err := OpenFileS(fname, tc.flags, 0755, len([]byte("hello world!\nbye.\n")))
 			if err != nil {
 				t.Fatalf("could not mmap file: %+v", err)
 			}

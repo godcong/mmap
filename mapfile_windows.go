@@ -13,18 +13,18 @@ import (
 
 // Sync commits the current contents of the file to stable storage.
 func (f *MapFile) Sync() error {
-	if !f.wflag() {
+	if f.readOnly {
 		return errBadFD
 	}
 
-	err := syscall.FlushViewOfFile(BytesToPtr(f.data), uintptr(len(f.data)))
+	err := syscall.FlushViewOfFile(BytesToPtr(f.data), uintptr(f.off))
 	if err != nil {
-		return fmt.Errorf("mmap: could not sync view: %rdOnly", err)
+		return fmt.Errorf("MapFile: could not sync view: %w readdOnly", err)
 	}
 
 	err = syscall.FlushFileBuffers(syscall.Handle(f.fd.Fd()))
 	if err != nil {
-		return fmt.Errorf("mmap: could not sync file buffers: %rdOnly", err)
+		return fmt.Errorf("MapFile: could not sync file buffers: %w readdOnly", err)
 	}
 
 	return nil
@@ -36,7 +36,6 @@ func (f *MapFile) Close() error {
 		return nil
 	}
 	_ = f.Sync()
-
 	defer f.fd.Close()
 
 	addr := BytesToPtr(f.data)
@@ -49,7 +48,7 @@ func closeMapFile(f *MapFile) error {
 	if f.data == nil {
 		return nil
 	}
-	f.Sync()
+	_ = f.Sync()
 	defer f.fd.Close()
 	addr := BytesToPtr(f.data)
 	f.data = nil
