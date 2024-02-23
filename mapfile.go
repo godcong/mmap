@@ -37,28 +37,20 @@ func (f *MapFile) At(i int) byte {
 // If there is an error, it will be of type *os.PathError.
 func (f *MapFile) Stat() (os.FileInfo, error) {
 	if f == nil {
-		return nil, os.ErrInvalid
+		return nil, ErrInvalid
 	}
 
 	return f.fd.Stat()
 }
 
-// func (f *MapFile) rflag() bool {
-// 	return true
-// }
-
-// func (f *MapFile) wflag() bool {
-// 	return !f.readOnly
-// }
-
 // Read implements the io.Reader interface.
 func (f *MapFile) Read(p []byte) (int, error) {
 	if f == nil {
-		return 0, os.ErrInvalid
+		return 0, ErrInvalid
 	}
 
 	if f.off >= len(f.data) {
-		return 0, io.EOF
+		return 0, EOF
 	}
 	n := copy(p, f.data[f.off:])
 	f.off += n
@@ -68,11 +60,11 @@ func (f *MapFile) Read(p []byte) (int, error) {
 // ReadByte implements the io.ByteReader interface.
 func (f *MapFile) ReadByte() (byte, error) {
 	if f == nil {
-		return 0, os.ErrInvalid
+		return 0, ErrInvalid
 	}
 
 	if f.off >= len(f.data) {
-		return 0, io.EOF
+		return 0, EOF
 	}
 	v := f.data[f.off]
 	f.off++
@@ -82,7 +74,7 @@ func (f *MapFile) ReadByte() (byte, error) {
 // ReadAt implements the io.ReaderAt interface.
 func (f *MapFile) ReadAt(p []byte, off int64) (int, error) {
 	if f == nil {
-		return 0, os.ErrInvalid
+		return 0, ErrInvalid
 	}
 
 	if f.data == nil {
@@ -101,19 +93,19 @@ func (f *MapFile) ReadAt(p []byte, off int64) (int, error) {
 // Write implements the io.Writer interface.
 func (f *MapFile) Write(p []byte) (int, error) {
 	if f == nil {
-		return 0, os.ErrInvalid
+		return 0, ErrInvalid
 	}
 
 	if f.readOnly {
-		return 0, errBadFD
+		return 0, ErrBadFileDesc
 	}
 	if f.off >= len(f.data) {
-		return 0, io.ErrShortWrite
+		return 0, ErrShortWrite
 	}
 	n := copy(f.data[f.off:], p)
 	f.off += n
 	if len(p) > n {
-		return n, io.ErrShortWrite
+		return n, ErrShortWrite
 	}
 	return n, nil
 }
@@ -121,14 +113,14 @@ func (f *MapFile) Write(p []byte) (int, error) {
 // WriteByte implements the io.ByteWriter interface.
 func (f *MapFile) WriteByte(c byte) error {
 	if f == nil {
-		return os.ErrInvalid
+		return ErrInvalid
 	}
 
 	if f.readOnly {
-		return errBadFD
+		return ErrBadFileDesc
 	}
 	if f.off >= len(f.data) {
-		return io.ErrShortWrite
+		return ErrShortWrite
 	}
 	f.data[f.off] = c
 	f.off++
@@ -138,11 +130,11 @@ func (f *MapFile) WriteByte(c byte) error {
 // WriteAt implements the io.WriterAt interface.
 func (f *MapFile) WriteAt(p []byte, off int64) (int, error) {
 	if f == nil {
-		return 0, os.ErrInvalid
+		return 0, ErrInvalid
 	}
 
 	if f.readOnly {
-		return 0, errBadFD
+		return 0, ErrBadFileDesc
 	}
 	if f.data == nil {
 		return 0, errors.New("MapFile: closed")
@@ -152,14 +144,14 @@ func (f *MapFile) WriteAt(p []byte, off int64) (int, error) {
 	}
 	n := copy(f.data[off:], p)
 	if n < len(p) {
-		return n, io.ErrShortWrite
+		return n, ErrShortWrite
 	}
 	return n, nil
 }
 
 func (f *MapFile) Seek(offset int64, whence int) (int64, error) {
 	if f == nil {
-		return 0, os.ErrInvalid
+		return 0, ErrInvalid
 	}
 
 	switch whence {
@@ -182,8 +174,6 @@ func (f *MapFile) Fd() uintptr {
 	return f.fd.Fd()
 }
 
-var errBadFD = errors.New("bad file descriptor")
-
 // Open memory-maps the named file for reading.
 func Open(filename string) (*MapFile, error) {
 	return openFile(filename, os.O_RDONLY, 0, 0)
@@ -192,7 +182,7 @@ func Open(filename string) (*MapFile, error) {
 // OpenFile memory-maps the named file for reading/writing, depending on
 // the flag value.
 func OpenFile(filename string, flag int, mode os.FileMode) (*MapFile, error) {
-	return openFile(filename, flag, mode, pageSize)
+	return openFile(filename, flag, mode, int(pageSize))
 }
 
 // OpenFileS memory-maps the named file for reading/writing, depending on
@@ -249,6 +239,9 @@ func openFile(filename string, mode int, perm os.FileMode, size int) (*MapFile, 
 		size = int(fsize)
 	}
 	data, err := Mmap(int(f.Fd()), 0, size, prot, MAP_SHARED)
+	if err != nil {
+		return nil, err
+	}
 	fd := &MapFile{
 		data:     data,
 		fd:       f,

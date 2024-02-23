@@ -32,7 +32,7 @@ func ExampleOpen() {
 }
 
 func ExampleOpenFile_read() {
-	f, err := mmap.OpenFile("example_mmap_test.go", os.O_RDONLY, 0)
+	f, err := mmap.OpenFile("example_mmap_test.go", os.O_RDONLY, 0o644)
 	if err != nil {
 		log.Fatalf("could not mmap file: %+v", err)
 	}

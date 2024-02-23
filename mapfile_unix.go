@@ -8,6 +8,7 @@
 package mmap
 
 import (
+	"fmt"
 	"runtime"
 
 	syscall "golang.org/x/sys/unix"
@@ -15,8 +16,8 @@ import (
 
 // Sync commits the current contents of the file to stable storage.
 func (f *MapFile) Sync() error {
-	if !f.wflag() {
-		return errBadFD
+	if f.readOnly {
+		return ErrBadFileDesc
 	}
 	return fmt.Errorf("MapFile: could not sync: %w", syscall.Msync(f.data, syscall.MS_SYNC))
 }
@@ -26,10 +27,12 @@ func (f *MapFile) Close() error {
 	if f.data == nil {
 		return nil
 	}
-	defer f.Close()
+	_ = f.Sync()
+
+	defer f.fd.Close()
 
 	data := f.data
 	f.data = nil
 	runtime.SetFinalizer(f, nil)
-	return syscall.Munmap(data)
+	return Munmap(data)
 }

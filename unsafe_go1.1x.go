@@ -15,6 +15,6 @@ func ptrToBytes(ptr uintptr, n int) []byte {
 	}))
 }
 
-func bytesToPtr(data []byte) *byte {
+func bytesToPoint(data []byte) *byte {
 	return (*byte)(unsafe.Pointer(&data[:1][0]))
 }

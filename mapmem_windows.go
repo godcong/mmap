@@ -7,30 +7,27 @@ import (
 	"syscall"
 )
 
-func createMem(id int, prot int, size int) (*MemFile, error) {
+func openMem(id int, size int) (*MapMem, error) {
 	flProtect := uint32(syscall.PAGE_READONLY)
 	dwDesiredAccess := uint32(syscall.FILE_MAP_READ)
-	writable := false
-	if prot&PROT_WRITE != 0 {
-		flProtect = syscall.PAGE_READWRITE
-		dwDesiredAccess = syscall.FILE_MAP_WRITE
-		writable = true
-	}
-
-	maxSizeHigh := uint32((0 + int64(size)) >> 32)
-	maxSizeLow := uint32((0 + int64(size)) & 0xFFFFFFFF)
 	owner := false
 	if id == 0 {
 		owner = true
 		id = GenKey()
+		flProtect = syscall.PAGE_READWRITE
+		dwDesiredAccess = syscall.FILE_MAP_WRITE
 	}
+
+	maxSizeHigh := uint32((0 + int64(size)) >> 32)
+	maxSizeLow := uint32((0 + int64(size)) & 0xFFFFFFFF)
 
 	wname, _ := syscall.UTF16PtrFromString(fmt.Sprintf("mmap_%d_index", id))
 	h, errno := syscall.CreateFileMapping(0, nil, flProtect, maxSizeHigh, maxSizeLow, wname)
 	if errno != nil {
 		return nil, os.NewSyscallError("CreateFileMapping", errno)
 	}
-	runtime.SetFinalizer(&close{handle: h}, (*close).Close)
+	// c := &close{handle: h}
+	// runtime.SetFinalizer(c, (*close).Close)
 	// Actually map a view of the data into memory. The view's size
 	// is the length the user requested.
 	fileOffsetHigh := uint32(0 >> 32)
@@ -39,25 +36,24 @@ func createMem(id int, prot int, size int) (*MemFile, error) {
 	if errno != nil {
 		return nil, os.NewSyscallError("MapViewOfFile", errno)
 	}
-	data := PtrToBytes(ptr, int(size))
-	fd := &MemFile{
-		owner:  owner,
-		id:     id,
-		data:   data,
-		rdOnly: !writable,
+	fd := &MapMem{
+		owner: owner,
+		id:    id,
+		data:  PtrToBytes(ptr, int(size)),
+		close: closeHandle(uintptr(h)),
 	}
-	runtime.SetFinalizer(fd, (*MemFile).Close)
+	runtime.SetFinalizer(fd, (*MapMem).Close)
 	return fd, nil
 }
 
-func (f *MemFile) Sync() error {
-	if f.rdOnly {
-		return errBadFD
+func (f *MapMem) Sync() error {
+	if !f.owner {
+		return ErrBadFileDesc
 	}
 
-	err := syscall.FlushViewOfFile(BytesToPtr(f.data), uintptr(len(f.data)))
-	if err != nil {
-		return fmt.Errorf("mmap: could not sync view: %w readOnly", err)
+	errno := syscall.FlushViewOfFile(BytesToPtr(f.data), uintptr(len(f.data)))
+	if errno != nil {
+		return os.NewSyscallError("FlushViewOfFile", errno)
 	}
 
 	// memory has no file
@@ -69,7 +65,7 @@ func (f *MemFile) Sync() error {
 	return nil
 }
 
-func (f *MemFile) Close() (err error) {
+func (f *MapMem) Close() (err error) {
 	if f.data == nil {
 		return nil
 	}
@@ -78,5 +74,9 @@ func (f *MemFile) Close() (err error) {
 	addr := BytesToPtr(f.data)
 	f.data = nil
 	runtime.SetFinalizer(f, nil)
-	return syscall.UnmapViewOfFile(addr)
+	err = syscall.UnmapViewOfFile(addr)
+	if err != nil {
+		return err
+	}
+	return f.close()
 }

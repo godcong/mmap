@@ -5,7 +5,6 @@
 package mmap
 
 import (
-	"fmt"
 	"runtime"
 
 	syscall "golang.org/x/sys/windows"
@@ -14,20 +13,10 @@ import (
 // Sync commits the current contents of the file to stable storage.
 func (f *MapFile) Sync() error {
 	if f.readOnly {
-		return errBadFD
+		return ErrBadFileDesc
 	}
 
-	err := syscall.FlushViewOfFile(BytesToPtr(f.data), uintptr(f.off))
-	if err != nil {
-		return fmt.Errorf("MapFile: could not sync view: %w readdOnly", err)
-	}
-
-	err = syscall.FlushFileBuffers(syscall.Handle(f.fd.Fd()))
-	if err != nil {
-		return fmt.Errorf("MapFile: could not sync file buffers: %w readdOnly", err)
-	}
-
-	return nil
+	return Flush(f.data, uintptr(len(f.data)))
 }
 
 // Close closes the reader.
@@ -35,13 +24,14 @@ func (f *MapFile) Close() error {
 	if f.data == nil {
 		return nil
 	}
-	_ = f.Sync()
 	defer f.fd.Close()
+	// Sync the file before closing it.
+	_ = f.Sync()
 
-	addr := BytesToPtr(f.data)
+	data := f.data
 	f.data = nil
 	runtime.SetFinalizer(f, nil)
-	return syscall.UnmapViewOfFile(addr)
+	return Munmap(data)
 }
 
 func closeMapFile(f *MapFile) error {

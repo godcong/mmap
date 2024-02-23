@@ -4,20 +4,19 @@ package mmap
 
 import (
 	"os"
-	"runtime"
 	"sync"
 	"syscall"
 	"unsafe"
 )
 
 const (
-	PROT_NONE  = 0x0
-	PROT_READ  = 0x1
-	PROT_WRITE = 0x2
-	PROT_EXEC  = 0x4
-	PROT_COPY  = 0x8
-	// PROT_GROWSDOWN = 0x1000000
-	// PROT_GROWSUP   = 0x2000000
+	PROT_NONE      = 0x0
+	PROT_READ      = 0x1
+	PROT_WRITE     = 0x2
+	PROT_EXEC      = 0x4
+	PROT_COPY      = 0x8
+	PROT_GROWSDOWN = 0x1000000
+	PROT_GROWSUP   = 0x2000000
 	//
 	// MAP_32BIT      = 0x40
 	// MAP_ANON       = 0x20
@@ -39,14 +38,15 @@ const (
 )
 
 type active struct {
-	data []byte
-	fd   syscall.Handle
+	data  []byte
+	fd    uintptr
+	close func() error
 }
 
 type mmapper struct {
 	sync.Mutex
 	active map[*byte]*active // active mappings; key is last byte in mapping
-	mmap   func(addr, length uintptr, prot, flags, fd int, offset int64) (uintptr, error)
+	mmap   func(addr, length uintptr, prot, flags, fd int, offset int64) (uintptr, uintptr, error)
 	munmap func(addr uintptr, length uintptr) error
 }
 
@@ -62,19 +62,19 @@ func (m *mmapper) Mmap(fd int, offset int64, length int, prot int, flags int) (d
 	}
 
 	// Map the requested memory.
-	addr, errno := m.mmap(0, uintptr(length), prot, flags, fd, offset)
-	if errno != nil {
-		return nil, errno
+	handle, mapview, err := m.mmap(0, uintptr(length), prot, flags, fd, offset)
+	if err != nil {
+		return nil, err
 	}
 
 	// Use unsafe to turn addr into a []byte.
-	data = PtrToBytes(addr, length)
+	data = PtrToBytes(mapview, length)
 
 	// Register mapping in m and return it.
 	p := &data[cap(data)-1]
 	m.Lock()
 	defer m.Unlock()
-	m.active[p] = &active{data: data, fd: syscall.Handle(fd)}
+	m.active[p] = &active{data: data, fd: uintptr(fd), close: closeHandle(handle)}
 	return data, nil
 }
 
@@ -90,17 +90,24 @@ func (m *mmapper) Munmap(data []byte) (err error) {
 	if b == nil || &b.data[0] != &data[0] {
 		return EINVAL
 	}
-	err = flush(b, data, uintptr(len(data)))
+	// Unmap the memory and update m.
+	if err := m.munmap(BytesToPtr(data), uintptr(len(b.data))); err != nil {
+		return err
+	}
+	err = b.close()
 	if err != nil {
 		return err
 	}
-
-	// Unmap the memory and update m.
-	if errno := m.munmap(BytesToPtr(data), uintptr(len(b.data))); errno != nil {
-		return errno
-	}
 	delete(m.active, p)
 	return nil
+}
+
+func (m *mmapper) Flush(data []byte, sz uintptr) (err error) {
+	p := &data[cap(data)-1]
+	mapper.Lock()
+	defer mapper.Unlock()
+	b := mapper.active[p]
+	return flush(Handle(b.fd), data, sz)
 }
 
 // Mmap maps the contents of the file at the given path.
@@ -113,7 +120,12 @@ func Munmap(data []byte) (err error) {
 	return mapper.Munmap(data)
 }
 
-func mmap(addr uintptr, length uintptr, prot int, flags int, fd int, offset int64) (xaddr uintptr, err error) {
+// Flush flushes the data to memory referenced.
+func Flush(data []byte, size uintptr) (err error) {
+	return mapper.Flush(data, size)
+}
+
+func mmap(addr uintptr, length uintptr, prot int, flags int, fd int, offset int64) (handle, xaddr uintptr, err error) {
 	flProtect := uint32(syscall.PAGE_READONLY)
 	dwDesiredAccess := uint32(syscall.FILE_MAP_READ)
 	// writable := false
@@ -138,11 +150,11 @@ func mmap(addr uintptr, length uintptr, prot int, flags int, fd int, offset int6
 	// is starting from. This does not map the data into memory.
 	maxSizeHigh := uint32((offset + int64(length)) >> 32)
 	maxSizeLow := uint32((offset + int64(length)) & 0xFFFFFFFF)
-	h, errno := syscall.CreateFileMapping(syscall.Handle(fd), makeInheritSa(), flProtect, maxSizeHigh, maxSizeLow, nil)
+	h, errno := syscall.CreateFileMapping(Handle(fd), makeInheritSa(), flProtect, maxSizeHigh, maxSizeLow, nil)
 	if errno != nil {
-		return xaddr, os.NewSyscallError("CreateFileMapping", errno)
+		return handle, xaddr, os.NewSyscallError("CreateFileMapping", errno)
 	}
-	runtime.SetFinalizer(&close{handle: h}, (*close).Close)
+
 	// defer syscall.CloseHandle(h)
 	// Actually map a view of the data into memory. The view's size
 	// is the length the user requested.
@@ -150,22 +162,28 @@ func mmap(addr uintptr, length uintptr, prot int, flags int, fd int, offset int6
 	fileOffsetLow := uint32(offset & 0xFFFFFFFF)
 	ptr, errno := syscall.MapViewOfFile(h, dwDesiredAccess, fileOffsetHigh, fileOffsetLow, uintptr(length))
 	if errno != nil {
-		return xaddr, os.NewSyscallError("MapViewOfFile", errno)
+		_ = syscall.CloseHandle(h)
+		return handle, xaddr, os.NewSyscallError("MapViewOfFile", errno)
 	}
-	return ptr, nil
+
+	return uintptr(h), ptr, nil
 }
 
-func flush(active *active, data []byte, len uintptr) (err error) {
-	errno := syscall.FlushViewOfFile(uintptr(unsafe.Pointer(&data[0])), len)
+func flush(fd syscall.Handle, data []byte, len uintptr) (err error) {
+	errno := syscall.FlushViewOfFile(BytesToPtr(data), len)
 	if errno != nil {
 		return os.NewSyscallError("FlushViewOfFile", errno)
 	}
-	errno = syscall.FlushFileBuffers(active.fd)
+	errno = syscall.FlushFileBuffers(fd)
 	return os.NewSyscallError("FlushFileBuffers", errno)
 }
 
 func munmap(addr uintptr, length uintptr) (err error) {
-	return syscall.UnmapViewOfFile(addr)
+	errno := syscall.UnmapViewOfFile(addr)
+	if errno != nil {
+		return os.NewSyscallError("UnmapViewOfFile", errno)
+	}
+	return
 }
 
 func makeInheritSa() *syscall.SecurityAttributes {
@@ -175,10 +193,20 @@ func makeInheritSa() *syscall.SecurityAttributes {
 	return &sa
 }
 
-type close struct {
-	handle syscall.Handle
-}
+// type closer struct {
+// 	handle Handle
+// }
+//
+// func (c *closer) Close() error {
+// 	return syscall.CloseHandle(c.handle)
+// }
 
-func (c *close) Close() error {
-	return syscall.CloseHandle(c.handle)
+func closeHandle(handle uintptr) func() error {
+	return func() error {
+		err := syscall.CloseHandle(Handle(handle))
+		if err != nil {
+			return os.NewSyscallError("CloseHandle", err)
+		}
+		return nil
+	}
 }

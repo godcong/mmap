@@ -9,7 +9,6 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"runtime"
 	"testing"
 )
 
@@ -154,7 +153,7 @@ func TestOpen(t *testing.T) {
 				if err == nil {
 					t.Fatal("expected an error")
 				}
-				if got, want := err, errBadFD; got.Error() != want.Error() {
+				if got, want := err, ErrBadFileDesc; got.Error() != want.Error() {
 					t.Fatalf("invalid error:\ngot= %+v\nwant=%+v", got, want)
 				}
 			})
@@ -164,7 +163,7 @@ func TestOpen(t *testing.T) {
 				if err == nil {
 					t.Fatal("expected an error")
 				}
-				if got, want := err, errBadFD; got.Error() != want.Error() {
+				if got, want := err, ErrBadFileDesc; got.Error() != want.Error() {
 					t.Fatalf("invalid error:\ngot= %+v\nwant=%+v", got, want)
 				}
 			})
@@ -174,7 +173,7 @@ func TestOpen(t *testing.T) {
 				if err == nil {
 					t.Fatal("expected an error")
 				}
-				if got, want := err, errBadFD; got.Error() != want.Error() {
+				if got, want := err, ErrBadFileDesc; got.Error() != want.Error() {
 					t.Fatalf("invalid error:\ngot= %+v\nwant=%+v", got, want)
 				}
 			})
@@ -184,7 +183,7 @@ func TestOpen(t *testing.T) {
 				if err == nil {
 					t.Fatal("expected an error")
 				}
-				if got, want := err, errBadFD; got.Error() != want.Error() {
+				if got, want := err, ErrBadFileDesc; got.Error() != want.Error() {
 					t.Fatalf("invalid error:\ngot= %+v\nwant=%+v", got, want)
 				}
 			})
@@ -232,6 +231,7 @@ func TestWrite(t *testing.T) {
 			if err != nil {
 				t.Fatalf("could not open file: %+v", err)
 			}
+			defer w.Close()
 			_, err = w.Write([]byte("hello world!\nbye.\n"))
 			// err := os.WriteFile(fname, []byte("hello world!\nbye.\n"), 0644)
 			if err != nil {
@@ -285,7 +285,6 @@ func TestWrite(t *testing.T) {
 			if got, want := display(fname), []byte("hello world!\ntye\n\n"); !bytes.Equal(got, want) {
 				t.Fatalf("invalid content:\ngot= %q\nwant=%q\n", got, want)
 			}
-			runtime.GC()
 
 		})
 	}
