@@ -18,7 +18,7 @@ import (
 type MapFile struct {
 	data     []byte
 	off      int
-	readOnly bool
+	writable bool
 
 	fd *os.File
 	// fileSize int64
@@ -97,7 +97,7 @@ func (f *MapFile) Write(p []byte) (int, error) {
 		return 0, ErrInvalid
 	}
 
-	if f.readOnly {
+	if !f.writable {
 		return 0, ErrBadFileDesc
 	}
 	if f.off >= len(f.data) {
@@ -123,7 +123,7 @@ func (f *MapFile) WriteByte(c byte) error {
 		return ErrInvalid
 	}
 
-	if f.readOnly {
+	if !f.writable {
 		return ErrBadFileDesc
 	}
 	if f.off >= len(f.data) {
@@ -143,7 +143,7 @@ func (f *MapFile) WriteAt(p []byte, off int64) (int, error) {
 		return 0, ErrInvalid
 	}
 
-	if f.readOnly {
+	if !f.writable {
 		return 0, ErrBadFileDesc
 	}
 	if f.data == nil {
@@ -221,27 +221,22 @@ func openMapFile(filename string, mode int, perm os.FileMode, size int) (*MapFil
 
 	fsize := fi.Size()
 	prot := PROT_READ
-	rdOnly := true
+	writable := false
 	switch mode & (os.O_RDONLY | os.O_WRONLY | os.O_RDWR) {
-	// case os.O_RDONLY:
-	// fmt.Println("MapFile: read only")
-	// prot = PROT_READ
 	case os.O_WRONLY:
-		// fmt.Println("MapFile: write only")
+		writable = true
 		prot = PROT_WRITE
-		rdOnly = false
 	case os.O_RDWR:
-		// fmt.Println("MapFile: read write")
+		writable = true
 		prot = PROT_READ | PROT_WRITE
-		rdOnly = false
+	default:
 	}
 
-	// fmt.Println("MapFile: file", filename, "mode", fmt.Sprintf("0x%x", mode), "modeis", mode&os.O_RDONLY, "read only", rdOnly)
-	if fsize == 0 && rdOnly {
+	if fsize == 0 && !writable {
 		if debug {
 			slog.Warn("MapFile.Open as read only", "size", size)
 		}
-		return &MapFile{readOnly: rdOnly}, nil
+		return &MapFile{writable: writable}, nil
 	}
 	if fsize < 0 {
 		return nil, fmt.Errorf("MapFile: file %q has negative size", filename)
@@ -259,10 +254,9 @@ func openMapFile(filename string, mode int, perm os.FileMode, size int) (*MapFil
 	}
 
 	fd := &MapFile{
-		data: data,
-		// fileSize: fsize,
+		data:     data,
 		fd:       f,
-		readOnly: rdOnly,
+		writable: writable,
 	}
 	runtime.SetFinalizer(fd, (*MapFile).Close)
 	return fd, nil

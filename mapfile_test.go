@@ -30,7 +30,7 @@ func TestOpen(t *testing.T) {
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			r, err := Open(filename)
+			r, err := tc.open(filename)
 			if err != nil {
 				t.Fatalf("Open: %+v", err)
 			}
@@ -41,7 +41,7 @@ func TestOpen(t *testing.T) {
 				t.Fatalf("could not stat file: %+v", err)
 			}
 
-			if !r.readOnly {
+			if r.writable {
 				t.Fatal("not open for reading")
 			}
 

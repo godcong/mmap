@@ -16,7 +16,7 @@ import (
 
 // Sync commits the current contents of the file to stable storage.
 func (f *MapFile) Sync() error {
-	if f.readOnly {
+	if !f.writable {
 		return ErrBadFileDesc
 	}
 	err := syscall.Msync(f.data, syscall.MS_SYNC)

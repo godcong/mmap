@@ -1,0 +1,24 @@
+name: Go mmap Test
+on: [ push ]
+jobs:
+  run:
+    runs-on: ${{ matrix.operating-system }}
+    strategy:
+      matrix:
+        operating-system: [ ubuntu-latest, windows-latest, macos-latest ]
+        versions: [ 1.18, 1.20, 1.22 ]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+      - name: Setup Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: ${{ matrix.versions }}
+      - name: Run Test
+        run: |
+          go mod tidy
+          go test -race ./...
+      - name: Run Examples
+        working-directory: examples
+        run: |
+          go test -race ./...
