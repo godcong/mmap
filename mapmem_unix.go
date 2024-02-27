@@ -3,7 +3,6 @@
 package mmap
 
 import (
-	"log/slog"
 	"os"
 	"runtime"
 
@@ -20,7 +19,7 @@ func openMapMem(id int, size int) (*MapMem, error) {
 	}
 	if owner {
 		if debug {
-			slog.Info("CreateMapMem", "size", size)
+			Log().Info("CreateMapMem", "size", size)
 		}
 		id, err = syscall.SysvShmGet(GenKey(), size, syscall.IPC_CREAT|syscall.IPC_EXCL|0o600)
 		if err != nil {
@@ -29,7 +28,7 @@ func openMapMem(id int, size int) (*MapMem, error) {
 		closer = closeShm(id)
 	} else {
 		if debug {
-			slog.Info("OpenMapMem", "size", size)
+			Log().Info("OpenMapMem", "size", size)
 		}
 	}
 

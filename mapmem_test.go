@@ -3,7 +3,6 @@ package mmap
 import (
 	"bytes"
 	"io"
-	"log/slog"
 	"os"
 	"reflect"
 	"runtime"
@@ -19,12 +18,12 @@ func TestOpenMemFile(t *testing.T) {
 		s, err := OpenMem(id, sz)
 		if err != nil {
 			if debug {
-				slog.Error("OpenMem", "err", err)
+				Log().Error("OpenMem", "err", err)
 			}
 			return nil
 		}
 		if debug {
-			slog.Info("display", "data", string(s.data), "len", len(s.data), "off", s.off, "addr", unsafemap.BytesToPtr(s.data))
+			Log().Info("display", "data", string(s.data), "len", len(s.data), "off", s.off, "addr", unsafemap.BytesToPtr(s.data))
 		}
 		raw, err := io.ReadAll(s)
 		if err != nil {
@@ -56,7 +55,7 @@ func TestOpenMemFile(t *testing.T) {
 				t.Fatalf("could not write: %+v", err)
 			}
 			if debug {
-				slog.Info("data write", "data", string(w.data), "len", len(w.data), "off", w.off, "addr", unsafemap.BytesToPtr(w.data))
+				Log().Info("data write", "data", string(w.data), "len", len(w.data), "off", w.off, "addr", unsafemap.BytesToPtr(w.data))
 			}
 			if got, want := display(w.ID(), len("hello world!\nbye.\n")), []byte("hello world!\nbye.\n"); !bytes.Equal(got, want) {
 				t.Fatalf("invalid content:\ngot= %q\nwant=%q\n", got, want)
@@ -67,7 +66,7 @@ func TestOpenMemFile(t *testing.T) {
 				t.Fatalf("could not write-at: %+v", err)
 			}
 			if debug {
-				slog.Info("data write at", "data", string(w.data), "len", len(w.data), "off", w.off)
+				Log().Info("data write at", "data", string(w.data), "len", len(w.data), "off", w.off)
 			}
 			if got, want := display(w.ID(), len("hello world!\nbye.\n")), []byte("helbye!\nrld!\nbye.\n"); !bytes.Equal(got, want) {
 				t.Fatalf("invalid content:\ngot= %q\nwant=%q\n", got, want)
@@ -83,7 +82,7 @@ func TestOpenMemFile(t *testing.T) {
 				t.Fatalf("could not write: %+v", err)
 			}
 			if debug {
-				slog.Info("data write", "data", string(w.data), "len", len(w.data), "off", w.off)
+				Log().Info("data write", "data", string(w.data), "len", len(w.data), "off", w.off)
 			}
 			if got, want := display(w.ID(), len("hello world!\nbye.\n")), []byte("hello world!\nbye\n\n"); !bytes.Equal(got, want) {
 				t.Fatalf("invalid content:\ngot= %q\nwant=%q\n", got, want)
@@ -99,7 +98,7 @@ func TestOpenMemFile(t *testing.T) {
 				t.Fatalf("could not write-byte: %+v", err)
 			}
 			if debug {
-				slog.Info("data write byte", "data", string(w.data), "len", len(w.data), "off", w.off)
+				Log().Info("data write byte", "data", string(w.data), "len", len(w.data), "off", w.off)
 			}
 			if got, want := display(w.ID(), len("hello world!\nbye.\n")), []byte("hello world!\ntye\n\n"); !bytes.Equal(got, want) {
 				t.Fatalf("invalid content:\ngot= %q\nwant=%q\n", got, want)

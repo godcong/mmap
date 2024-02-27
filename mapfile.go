@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log/slog"
 	"os"
 	"runtime"
 )
@@ -97,7 +96,7 @@ func (f *MapFile) Write(p []byte) (int, error) {
 	}
 	if f.off >= len(f.data) {
 		if debug {
-			slog.Error("MapFile.Write", "err", ErrShortWrite, "len", len(f.data), "off", f.off)
+			Log().Error("MapFile.Write", "err", ErrShortWrite, "len", len(f.data), "off", f.off)
 		}
 		return 0, ErrShortWrite
 	}
@@ -105,7 +104,7 @@ func (f *MapFile) Write(p []byte) (int, error) {
 	f.off += n
 	if len(p) > n {
 		if debug {
-			slog.Error("MapFile.Write2", "err", ErrShortWrite, "len", len(f.data), "off", f.off)
+			Log().Error("MapFile.Write2", "err", ErrShortWrite, "len", len(f.data), "off", f.off)
 		}
 		return n, ErrShortWrite
 	}
@@ -123,7 +122,7 @@ func (f *MapFile) WriteByte(c byte) error {
 	}
 	if f.off >= len(f.data) {
 		if debug {
-			slog.Error("MapFile.WriteByte", "err", ErrShortWrite, "len", len(f.data), "off", f.off)
+			Log().Error("MapFile.WriteByte", "err", ErrShortWrite, "len", len(f.data), "off", f.off)
 		}
 		return ErrShortWrite
 	}
@@ -150,7 +149,7 @@ func (f *MapFile) WriteAt(p []byte, off int64) (int, error) {
 	n := copy(f.data[off:], p)
 	if n < len(p) {
 		if debug {
-			slog.Error("MapFile.WriteByte", "err", ErrShortWrite, "len", len(f.data), "off", f.off)
+			Log().Error("MapFile.WriteByte", "err", ErrShortWrite, "len", len(f.data), "off", f.off)
 		}
 		return n, ErrShortWrite
 	}
@@ -229,7 +228,7 @@ func openMapFile(filename string, mode int, perm os.FileMode, size int) (*MapFil
 
 	if fsize == 0 && !writable {
 		if debug {
-			slog.Warn("MapFile.Open as read only", "size", size)
+			Log().Warn("MapFile.Open as read only", "size", size)
 		}
 		return &MapFile{writable: writable}, nil
 	}
@@ -243,7 +242,7 @@ func openMapFile(filename string, mode int, perm os.FileMode, size int) (*MapFil
 	data, err := Mmap(int(f.Fd()), 0, int(fsize), prot, MAP_SHARED)
 	if err != nil {
 		if debug {
-			slog.Error("MapFile.Open", "err", err, "size", size, "datalen", len(data), "cap", cap(data))
+			Log().Error("MapFile.Open", "err", err, "size", size, "datalen", len(data), "cap", cap(data))
 		}
 		return nil, err
 	}

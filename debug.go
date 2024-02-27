@@ -1,6 +1,8 @@
 package mmap
 
-import "os"
+import (
+	"os"
+)
 
 var debug = false
 

@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log/slog"
 	"os"
 )
 
@@ -41,7 +40,7 @@ func (f *MapMem) Seek(offset int64, whence int) (int64, error) {
 		return 0, fmt.Errorf("MapFile: negative position")
 	}
 	if debug {
-		slog.Info("Seek", "len", len(f.data), "off", f.off)
+		Log().Info("Seek", "len", len(f.data), "off", f.off)
 	}
 	return int64(f.off), nil
 }
@@ -56,12 +55,12 @@ func (f *MapMem) WriteByte(c byte) error {
 	}
 	if f.off >= len(f.data) {
 		if debug {
-			slog.Error("MapFile.WriteByte", "err", ErrShortWrite, "len", len(f.data), "off", f.off)
+			Log().Error("MapFile.WriteByte", "err", ErrShortWrite, "len", len(f.data), "off", f.off)
 		}
 		return ErrShortWrite
 	}
 	if debug {
-		slog.Info("WriteByte", "len", len(f.data), "off", f.off)
+		Log().Info("WriteByte", "len", len(f.data), "off", f.off)
 	}
 
 	f.data[f.off] = c
