@@ -5,7 +5,6 @@ import (
 	"io"
 	"os"
 	"reflect"
-	"runtime"
 	"testing"
 	"unsafe"
 
@@ -22,6 +21,7 @@ func TestOpenMemFile(t *testing.T) {
 			}
 			return nil
 		}
+		defer s.Close()
 		if debug {
 			Log().Info("display", "data", string(s.data), "len", len(s.data), "off", s.off, "addr", unsafemap.BytesToPtr(s.data))
 		}
@@ -50,6 +50,7 @@ func TestOpenMemFile(t *testing.T) {
 			if err != nil {
 				t.Fatalf("could not open file: %+v", err)
 			}
+			defer w.Close()
 			_, err = w.Write([]byte("hello world!\nbye.\n"))
 			if err != nil {
 				t.Fatalf("could not write: %+v", err)
@@ -103,7 +104,6 @@ func TestOpenMemFile(t *testing.T) {
 			if got, want := display(w.ID(), len("hello world!\nbye.\n")), []byte("hello world!\ntye\n\n"); !bytes.Equal(got, want) {
 				t.Fatalf("invalid content:\ngot= %q\nwant=%q\n", got, want)
 			}
-			runtime.GC()
 		})
 	}
 }
