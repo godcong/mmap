@@ -6,7 +6,7 @@ jobs:
     strategy:
       matrix:
         operating-system: [ ubuntu-latest, windows-latest, macos-latest ]
-        versions: [ 1.21, 1.22 ]
+        versions: [ 1.22 ]
     steps:
       - name: Checkout
         uses: actions/checkout@v3
@@ -17,4 +17,4 @@ jobs:
       - name: Run Test
         run: |
           go mod tidy
-          GO_MMAP_DEBUG=true && go test -race ./...
+          go test -race ./...
