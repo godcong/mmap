@@ -10,12 +10,6 @@ import (
 	syscall "golang.org/x/sys/unix"
 )
 
-var pageSize int
-
-func init() {
-	pageSize = os.Getpagesize()
-}
-
 func openMapMem(id int, size int) (*MapMem, error) {
 	var err error
 	owner := false
@@ -72,11 +66,4 @@ func closeShm(id int) func() error {
 		}
 		return nil
 	}
-}
-
-func getPageSize(size int) int {
-	if size == 0 {
-		return pageSize
-	}
-	return size
 }

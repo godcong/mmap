@@ -21,24 +21,8 @@ const (
 	PROT_COPY      = 0x8
 	PROT_GROWSDOWN = 0x1000000
 	PROT_GROWSUP   = 0x2000000
-	//
-	// MAP_32BIT      = 0x40
-	// MAP_ANON       = 0x20
-	// MAP_ANONYMOUS  = 0x20
-	// MAP_DENYWRITE  = 0x800
-	// MAP_EXECUTABLE = 0x1000
-	// MAP_FILE       = 0x0
-	// MAP_FIXED      = 0x10
-	// MAP_GROWSDOWN  = 0x100
-	// MAP_HUGETLB    = 0x40000
-	// MAP_LOCKED     = 0x2000
-	// MAP_NONBLOCK   = 0x10000
-	// MAP_NORESERVE  = 0x4000
-	// MAP_POPULATE   = 0x8000
-	// MAP_PRIVATE    = 0x2
+
 	MAP_SHARED = 0x1
-	// MAP_STACK      = 0x20000
-	// MAP_TYPE       = 0xf
 )
 
 type Handle = syscall.Handle

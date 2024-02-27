@@ -17,6 +17,13 @@ Supports for Darwin,Linux and Windows architectures.
 > go get github.com/godcong/mmap@latest
 ```
 
+## Example
+```go
+
+
+
+```
+
 ## Similar Packages
 
 - github.com/godcong/mmap
@@ -24,3 +31,6 @@ Supports for Darwin,Linux and Windows architectures.
 - github.com/riobard/godcong
 - launchpad.net/gommap
 - github.com/edsrzf/mmap-go
+
+## License
+This Project used MIT and BSD license.

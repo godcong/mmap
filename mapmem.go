@@ -5,7 +5,14 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"os"
 )
+
+var pageSize int
+
+func init() {
+	pageSize = os.Getpagesize()
+}
 
 type MapMem struct {
 	owner bool
@@ -156,12 +163,27 @@ func (f *MapMem) IsOwner() bool {
 	return f.owner
 }
 
+func (f *MapMem) Len() int {
+	return len(f.data)
+}
+
+func (f *MapMem) Cap() int {
+	return cap(f.data)
+}
+
 func OpenMem(id int, size int) (*MapMem, error) {
 	return openMapMem(id, size)
 }
 
 func OpenMemS(id int) (*MapMem, error) {
 	return openMapMem(id, 0)
+}
+
+func getPageSize(size int) int {
+	if size == 0 {
+		return pageSize
+	}
+	return size
 }
 
 var (

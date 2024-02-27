@@ -6,6 +6,7 @@ package examples_test
 
 import (
 	"fmt"
+	"io"
 	"log"
 	"os"
 
@@ -96,4 +97,35 @@ func ExampleOpenFile_readwrite() {
 	// Output:
 	// hello world!
 	// bye!o world!
+}
+
+func ExampleOpenMem() {
+	w, err := mmap.OpenMemS(0)
+	if err != nil {
+		log.Fatalf("could not create memory: %+v", err)
+	}
+	defer w.Close()
+
+	n, err := w.Write([]byte("hello world!"))
+	if err != nil {
+		log.Fatalf("could not write to memory: %+v", err)
+	}
+	_, err = w.WriteAt([]byte("bye!"), 3)
+	if err != nil {
+		log.Fatalf("could not write at to memory: %+v", err)
+	}
+	r, err := mmap.OpenMem(w.ID(), n)
+	if err != nil {
+		log.Fatalf("could not open memory: %+v", err)
+	}
+	defer r.Close()
+	rd, err := io.ReadAll(r)
+	if err != nil {
+		return
+	}
+
+	fmt.Printf("%s\n", rd)
+
+	// Output:
+	// helbye!orld!
 }

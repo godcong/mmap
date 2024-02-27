@@ -10,16 +10,19 @@ import (
 )
 
 func openMapMem(id int, size int) (*MapMem, error) {
-	flProtect := uint32(syscall.PAGE_READONLY)
-	dwDesiredAccess := uint32(syscall.FILE_MAP_READ)
 	owner := false
 	if id == 0 {
 		owner = true
 		id = GenKey()
 	}
 	wname, _ := syscall.UTF16PtrFromString(fmt.Sprintf("mmap_%d_index", id))
-	var handle Handle
-	var err error
+
+	err := error(nil)
+	handle := Handle(0)
+	flProtect := uint32(syscall.PAGE_READONLY)
+	dwDesiredAccess := uint32(syscall.FILE_MAP_READ)
+
+	size = getPageSize(size)
 	if owner {
 		flProtect = syscall.PAGE_READWRITE
 		dwDesiredAccess = syscall.FILE_MAP_WRITE
@@ -46,14 +49,15 @@ func openMapMem(id int, size int) (*MapMem, error) {
 	// is the length the user requested.
 	// fileOffsetHigh := uint32(0 >> 32)
 	// fileOffsetLow := uint32(0 & 0xFFFFFFFF)
-	ptr, errno := syscall.MapViewOfFile(handle, dwDesiredAccess, 0, 0, uintptr(size))
+	mapview, errno := syscall.MapViewOfFile(handle, dwDesiredAccess, 0, 0, uintptr(size))
 	if errno != nil {
 		return nil, os.NewSyscallError("MapViewOfFile", errno)
 	}
+
 	fd := &MapMem{
 		owner: owner,
 		id:    id,
-		data:  unsafemap.PtrToBytes(ptr, size),
+		data:  unsafemap.PtrToBytes(mapview, size),
 		close: dummyCloser,
 	}
 	runtime.SetFinalizer(fd, (*MapMem).Close)
