@@ -3,11 +3,14 @@ package mmap
 import (
 	"bytes"
 	"io"
+	"log/slog"
 	"os"
 	"reflect"
 	"runtime"
 	"testing"
 	"unsafe"
+
+	unsafemap "github.com/godcong/mmap/unsafemap"
 )
 
 func TestOpenMemFile(t *testing.T) {
@@ -15,9 +18,14 @@ func TestOpenMemFile(t *testing.T) {
 		t.Helper()
 		s, err := OpenMem(id, sz)
 		if err != nil {
+			if debug {
+				slog.Error("OpenMem", "err", err)
+			}
 			return nil
 		}
-
+		if debug {
+			slog.Info("display", "data", string(s.data), "len", len(s.data), "off", s.off, "addr", unsafemap.BytesToPtr(s.data))
+		}
 		raw, err := io.ReadAll(s)
 		if err != nil {
 			t.Fatalf("could not read file %d: %+v", id, err)
@@ -39,21 +47,28 @@ func TestOpenMemFile(t *testing.T) {
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			w, err := OpenMem(0, len("hello world!\nbye.\n"))
+			w, err := OpenMem(0, len([]byte("hello world!\nbye.\n")))
 			if err != nil {
 				t.Fatalf("could not open file: %+v", err)
 			}
 			_, err = w.Write([]byte("hello world!\nbye.\n"))
-			// err := os.WriteFile(fname, []byte("hello world!\nbye.\n"), 0644)
 			if err != nil {
-				t.Fatalf("could not seed file: %+v", err)
+				t.Fatalf("could not write: %+v", err)
+			}
+			if debug {
+				slog.Info("data write", "data", string(w.data), "len", len(w.data), "off", w.off, "addr", unsafemap.BytesToPtr(w.data))
+			}
+			if got, want := display(w.ID(), len("hello world!\nbye.\n")), []byte("hello world!\nbye.\n"); !bytes.Equal(got, want) {
+				t.Fatalf("invalid content:\ngot= %q\nwant=%q\n", got, want)
 			}
 
 			_, err = w.WriteAt([]byte("bye!\n"), 3)
 			if err != nil {
 				t.Fatalf("could not write-at: %+v", err)
 			}
-
+			if debug {
+				slog.Info("data write at", "data", string(w.data), "len", len(w.data), "off", w.off)
+			}
 			if got, want := display(w.ID(), len("hello world!\nbye.\n")), []byte("helbye!\nrld!\nbye.\n"); !bytes.Equal(got, want) {
 				t.Fatalf("invalid content:\ngot= %q\nwant=%q\n", got, want)
 			}
@@ -67,7 +82,9 @@ func TestOpenMemFile(t *testing.T) {
 			if err != nil {
 				t.Fatalf("could not write: %+v", err)
 			}
-
+			if debug {
+				slog.Info("data write", "data", string(w.data), "len", len(w.data), "off", w.off)
+			}
 			if got, want := display(w.ID(), len("hello world!\nbye.\n")), []byte("hello world!\nbye\n\n"); !bytes.Equal(got, want) {
 				t.Fatalf("invalid content:\ngot= %q\nwant=%q\n", got, want)
 			}
@@ -81,7 +98,9 @@ func TestOpenMemFile(t *testing.T) {
 			if err != nil {
 				t.Fatalf("could not write-byte: %+v", err)
 			}
-
+			if debug {
+				slog.Info("data write byte", "data", string(w.data), "len", len(w.data), "off", w.off)
+			}
 			if got, want := display(w.ID(), len("hello world!\nbye.\n")), []byte("hello world!\ntye\n\n"); !bytes.Equal(got, want) {
 				t.Fatalf("invalid content:\ngot= %q\nwant=%q\n", got, want)
 			}
@@ -112,7 +131,7 @@ func TestPointToBytes(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := PointToBytes(tt.args.ptr, tt.args.n); !reflect.DeepEqual(got, tt.want) {
+			if got := unsafemap.PointToBytes(tt.args.ptr, tt.args.n); !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("PointToBytes() = %v, want %v", got, tt.want)
 			}
 		})
@@ -140,7 +159,7 @@ func TestBytesToPoint(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := BytesToPoint(tt.args.data); !reflect.DeepEqual(got, tt.want) {
+			if got := unsafemap.BytesToPoint(tt.args.data); !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("BytesToPoint() = %v, want %v", got, tt.want)
 			}
 		})

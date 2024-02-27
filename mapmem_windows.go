@@ -4,43 +4,57 @@ import (
 	"fmt"
 	"os"
 	"runtime"
-	"syscall"
+
+	"github.com/godcong/mmap/unsafemap"
+	syscall "golang.org/x/sys/windows"
 )
 
-func openMem(id int, size int) (*MapMem, error) {
+func openMapMem(id int, size int) (*MapMem, error) {
 	flProtect := uint32(syscall.PAGE_READONLY)
 	dwDesiredAccess := uint32(syscall.FILE_MAP_READ)
 	owner := false
 	if id == 0 {
 		owner = true
 		id = GenKey()
+	}
+	wname, _ := syscall.UTF16PtrFromString(fmt.Sprintf("mmap_%d_index", id))
+	var handle Handle
+	var err error
+	if owner {
 		flProtect = syscall.PAGE_READWRITE
 		dwDesiredAccess = syscall.FILE_MAP_WRITE
+		low, high := uint32(size), uint32(size>>32)
+		handle, err = syscall.CreateFileMapping(syscall.InvalidHandle, makeInheritSa(), flProtect, high, low, wname)
+		if err != nil {
+			return nil, os.NewSyscallError("CreateFileMapping", err)
+		}
+		// }
+	} else {
+		handle, err = openFileMapping(dwDesiredAccess, true, wname)
+		if err != nil {
+			return nil, err
+		}
 	}
-
-	maxSizeHigh := uint32((0 + int64(size)) >> 32)
-	maxSizeLow := uint32((0 + int64(size)) & 0xFFFFFFFF)
-
-	wname, _ := syscall.UTF16PtrFromString(fmt.Sprintf("mmap_%d_index", id))
-	h, errno := syscall.CreateFileMapping(0, nil, flProtect, maxSizeHigh, maxSizeLow, wname)
-	if errno != nil {
-		return nil, os.NewSyscallError("CreateFileMapping", errno)
-	}
+	// low, high := uint32(size), uint32(size>>32)
+	// handle, err = syscall.CreateFileMapping(syscall.InvalidHandle, makeInheritSa(), flProtect, high, low, wname)
+	// if err != nil {
+	// 	return nil, os.NewSyscallError("CreateFileMapping", err)
+	// }
 	// c := &close{handle: h}
 	// runtime.SetFinalizer(c, (*close).Close)
 	// Actually map a view of the data into memory. The view's size
 	// is the length the user requested.
-	fileOffsetHigh := uint32(0 >> 32)
-	fileOffsetLow := uint32(0 & 0xFFFFFFFF)
-	ptr, errno := syscall.MapViewOfFile(h, dwDesiredAccess, fileOffsetHigh, fileOffsetLow, uintptr(size))
+	// fileOffsetHigh := uint32(0 >> 32)
+	// fileOffsetLow := uint32(0 & 0xFFFFFFFF)
+	ptr, errno := syscall.MapViewOfFile(handle, dwDesiredAccess, 0, 0, uintptr(size))
 	if errno != nil {
 		return nil, os.NewSyscallError("MapViewOfFile", errno)
 	}
 	fd := &MapMem{
 		owner: owner,
 		id:    id,
-		data:  PtrToBytes(ptr, int(size)),
-		close: closeHandle(uintptr(h)),
+		data:  unsafemap.PtrToBytes(ptr, size),
+		close: dummyCloser,
 	}
 	runtime.SetFinalizer(fd, (*MapMem).Close)
 	return fd, nil
@@ -51,16 +65,10 @@ func (f *MapMem) Sync() error {
 		return ErrBadFileDesc
 	}
 
-	errno := syscall.FlushViewOfFile(BytesToPtr(f.data), uintptr(len(f.data)))
+	errno := syscall.FlushViewOfFile(unsafemap.BytesToPtr(f.data), uintptr(len(f.data)))
 	if errno != nil {
 		return os.NewSyscallError("FlushViewOfFile", errno)
 	}
-
-	// memory has no file
-	// err = syscall.FlushFileBuffers(syscall.Handle(f.fd.Fd()))
-	// if err != nil {
-	// 	return fmt.Errorf("mmap: could not sync file buffers: %w readOnly", err)
-	// }
 
 	return nil
 }
@@ -71,7 +79,7 @@ func (f *MapMem) Close() (err error) {
 	}
 	_ = f.Sync()
 
-	addr := BytesToPtr(f.data)
+	addr := unsafemap.BytesToPtr(f.data)
 	f.data = nil
 	runtime.SetFinalizer(f, nil)
 	err = syscall.UnmapViewOfFile(addr)

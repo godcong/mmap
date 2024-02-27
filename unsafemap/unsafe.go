@@ -1,6 +1,8 @@
-package mmap
+package unsafemap
 
-import "unsafe"
+import (
+	"unsafe"
+)
 
 func PtrToBytes(ptr uintptr, n int) []byte {
 	return ptrToBytes(ptr, n)

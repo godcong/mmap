@@ -19,7 +19,11 @@ func (f *MapFile) Sync() error {
 	if f.readOnly {
 		return ErrBadFileDesc
 	}
-	return fmt.Errorf("MapFile: could not sync: %w", syscall.Msync(f.data, syscall.MS_SYNC))
+	err := syscall.Msync(f.data, syscall.MS_SYNC)
+	if err != nil {
+		return fmt.Errorf("MapFile: could not sync: %w", err)
+	}
+	return nil
 }
 
 // Close closes the memory-mapped file.

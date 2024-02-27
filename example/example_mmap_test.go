@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-package mmap_test
+package example_test
 
 import (
 	"fmt"
@@ -75,7 +75,7 @@ func ExampleOpenFile_readwrite() {
 
 	fmt.Printf("%s\n", raw)
 
-	rw, err := mmap.OpenFile(f.Name(), os.O_RDWR, 0755)
+	rw, err := mmap.OpenFile(f.Name(), os.O_RDWR, 0o755)
 	if err != nil {
 		log.Fatalf("could not open mmap file: %+v", err)
 	}

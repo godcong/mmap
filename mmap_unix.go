@@ -2,7 +2,9 @@
 
 package mmap
 
-import "syscall"
+import (
+	syscall "golang.org/x/sys/unix"
+)
 
 const (
 	PROT_NONE      = syscall.PROT_NONE

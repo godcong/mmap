@@ -9,9 +9,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"os"
 	"runtime"
-	"syscall"
 )
 
 // MapFile reads/writes a memory-mapped file.
@@ -21,6 +21,7 @@ type MapFile struct {
 	readOnly bool
 
 	fd *os.File
+	// fileSize int64
 }
 
 // Len returns the length of the underlying memory-mapped file.
@@ -100,11 +101,17 @@ func (f *MapFile) Write(p []byte) (int, error) {
 		return 0, ErrBadFileDesc
 	}
 	if f.off >= len(f.data) {
+		if debug {
+			slog.Error("MapFile.Write", "err", ErrShortWrite, "len", len(f.data), "off", f.off)
+		}
 		return 0, ErrShortWrite
 	}
 	n := copy(f.data[f.off:], p)
 	f.off += n
 	if len(p) > n {
+		if debug {
+			slog.Error("MapFile.Write2", "err", ErrShortWrite, "len", len(f.data), "off", f.off)
+		}
 		return n, ErrShortWrite
 	}
 	return n, nil
@@ -120,6 +127,9 @@ func (f *MapFile) WriteByte(c byte) error {
 		return ErrBadFileDesc
 	}
 	if f.off >= len(f.data) {
+		if debug {
+			slog.Error("MapFile.WriteByte", "err", ErrShortWrite, "len", len(f.data), "off", f.off)
+		}
 		return ErrShortWrite
 	}
 	f.data[f.off] = c
@@ -144,6 +154,9 @@ func (f *MapFile) WriteAt(p []byte, off int64) (int, error) {
 	}
 	n := copy(f.data[off:], p)
 	if n < len(p) {
+		if debug {
+			slog.Error("MapFile.WriteByte", "err", ErrShortWrite, "len", len(f.data), "off", f.off)
+		}
 		return n, ErrShortWrite
 	}
 	return n, nil
@@ -176,24 +189,24 @@ func (f *MapFile) Fd() uintptr {
 
 // Open memory-maps the named file for reading.
 func Open(filename string) (*MapFile, error) {
-	return openFile(filename, os.O_RDONLY, 0, 0)
+	return openMapFile(filename, os.O_RDONLY, 0, 0)
 }
 
 // OpenFile memory-maps the named file for reading/writing, depending on
 // the flag value.
 func OpenFile(filename string, flag int, mode os.FileMode) (*MapFile, error) {
-	return openFile(filename, flag, mode, int(pageSize))
+	return openMapFile(filename, flag, mode, 0)
 }
 
 // OpenFileS memory-maps the named file for reading/writing, depending on
 // the flag value.
 func OpenFileS(filename string, flag int, mode os.FileMode, size int) (*MapFile, error) {
-	return openFile(filename, flag, mode, size)
+	return openMapFile(filename, flag, mode, size)
 }
 
-func openFile(filename string, mode int, perm os.FileMode, size int) (*MapFile, error) {
+func openMapFile(filename string, mode int, perm os.FileMode, size int) (*MapFile, error) {
 	if len(filename) == 0 {
-		return nil, syscall.ENOENT
+		return nil, ENOENT
 	}
 
 	f, err := os.OpenFile(filename, mode|os.O_CREATE, perm)
@@ -210,9 +223,9 @@ func openFile(filename string, mode int, perm os.FileMode, size int) (*MapFile, 
 	prot := PROT_READ
 	rdOnly := true
 	switch mode & (os.O_RDONLY | os.O_WRONLY | os.O_RDWR) {
-	case os.O_RDONLY:
-		// fmt.Println("MapFile: read only")
-		prot = PROT_READ
+	// case os.O_RDONLY:
+	// fmt.Println("MapFile: read only")
+	// prot = PROT_READ
 	case os.O_WRONLY:
 		// fmt.Println("MapFile: write only")
 		prot = PROT_WRITE
@@ -225,7 +238,9 @@ func openFile(filename string, mode int, perm os.FileMode, size int) (*MapFile, 
 
 	// fmt.Println("MapFile: file", filename, "mode", fmt.Sprintf("0x%x", mode), "modeis", mode&os.O_RDONLY, "read only", rdOnly)
 	if fsize == 0 && rdOnly {
-		// fmt.Println("MapFile: empty file", filename)
+		if debug {
+			slog.Warn("MapFile.Open as read only", "size", size)
+		}
 		return &MapFile{readOnly: rdOnly}, nil
 	}
 	if fsize < 0 {
@@ -235,21 +250,22 @@ func openFile(filename string, mode int, perm os.FileMode, size int) (*MapFile, 
 		return nil, fmt.Errorf("MapFile: file %q is too large", filename)
 	}
 
-	if int(fsize) > size {
-		size = int(fsize)
-	}
-	data, err := Mmap(int(f.Fd()), 0, size, prot, MAP_SHARED)
+	data, err := Mmap(int(f.Fd()), 0, int(fsize), prot, MAP_SHARED)
 	if err != nil {
+		if debug {
+			slog.Error("MapFile.Open", "err", err, "size", size, "datalen", len(data), "cap", cap(data))
+		}
 		return nil, err
 	}
+
 	fd := &MapFile{
-		data:     data,
+		data: data,
+		// fileSize: fsize,
 		fd:       f,
 		readOnly: rdOnly,
 	}
 	runtime.SetFinalizer(fd, (*MapFile).Close)
 	return fd, nil
-
 }
 
 var (

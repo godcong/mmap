@@ -7,6 +7,7 @@ package mmap
 import (
 	"runtime"
 
+	"github.com/godcong/mmap/unsafemap"
 	syscall "golang.org/x/sys/windows"
 )
 
@@ -40,7 +41,7 @@ func closeMapFile(f *MapFile) error {
 	}
 	_ = f.Sync()
 	defer f.fd.Close()
-	addr := BytesToPtr(f.data)
+	addr := unsafemap.BytesToPtr(f.data)
 	f.data = nil
 	runtime.SetFinalizer(f, nil)
 	return syscall.UnmapViewOfFile(addr)

@@ -25,7 +25,7 @@ func TestOpen(t *testing.T) {
 		{
 			name: "open-read-only",
 			open: func(fname string) (*MapFile, error) {
-				return OpenFile(fname, os.O_RDONLY, 0644)
+				return OpenFile(fname, os.O_RDONLY, 0o644)
 			},
 		},
 	} {
@@ -145,7 +145,6 @@ func TestOpen(t *testing.T) {
 				if got, want := got, want[len(want)-32]; got != want {
 					t.Fatalf("invalid byte: got=%q, want=%q", got, want)
 				}
-
 			})
 
 			t.Run("sync", func(t *testing.T) {
@@ -227,18 +226,12 @@ func TestWrite(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			fname := filepath.Join(tmp, tc.name+".txt")
-			w, err := OpenFileS(fname, tc.flags, 0644, len([]byte("hello world!\nbye.\n")))
-			if err != nil {
-				t.Fatalf("could not open file: %+v", err)
-			}
-			defer w.Close()
-			_, err = w.Write([]byte("hello world!\nbye.\n"))
-			// err := os.WriteFile(fname, []byte("hello world!\nbye.\n"), 0644)
+			err = os.WriteFile(fname, []byte("hello world!\nbye.\n"), 0o644)
 			if err != nil {
 				t.Fatalf("could not seed file: %+v", err)
 			}
 
-			f, err := OpenFileS(fname, tc.flags, 0755, len([]byte("hello world!\nbye.\n")))
+			f, err := OpenFileS(fname, tc.flags, 0o755, len([]byte("hello world!\nbye.\n")))
 			if err != nil {
 				t.Fatalf("could not mmap file: %+v", err)
 			}
@@ -285,7 +278,6 @@ func TestWrite(t *testing.T) {
 			if got, want := display(fname), []byte("hello world!\ntye\n\n"); !bytes.Equal(got, want) {
 				t.Fatalf("invalid content:\ngot= %q\nwant=%q\n", got, want)
 			}
-
 		})
 	}
 }

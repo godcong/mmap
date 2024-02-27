@@ -3,10 +3,14 @@
 package mmap
 
 import (
+	"fmt"
 	"os"
 	"sync"
-	"syscall"
+	sys "syscall"
 	"unsafe"
+
+	"github.com/godcong/mmap/unsafemap"
+	syscall "golang.org/x/sys/windows"
 )
 
 const (
@@ -37,6 +41,8 @@ const (
 	// MAP_TYPE       = 0xf
 )
 
+type Handle = syscall.Handle
+
 type active struct {
 	data  []byte
 	fd    uintptr
@@ -50,26 +56,40 @@ type mmapper struct {
 	munmap func(addr uintptr, length uintptr) error
 }
 
+var (
+	modkernel32          = syscall.NewLazySystemDLL("kernel32.dll")
+	procOpenFileMappingW = modkernel32.NewProc("OpenFileMappingW")
+)
+
 var mapper = &mmapper{
 	active: make(map[*byte]*active),
 	mmap:   mmap,
 	munmap: munmap,
 }
 
-func (m *mmapper) Mmap(fd int, offset int64, length int, prot int, flags int) (data []byte, err error) {
-	if length <= 0 {
-		return nil, EINVAL
-	}
+func (m *mmapper) Mmap(fd int, offset int64, size int, prot int, flags int) (data []byte, err error) {
+	// if size <= 0 {
+	// 	return nil, EINVAL
+	// }
 
 	// Map the requested memory.
-	handle, mapview, err := m.mmap(0, uintptr(length), prot, flags, fd, offset)
+	handle, mapview, err := m.mmap(0, uintptr(size), prot, flags, fd, offset)
 	if err != nil {
 		return nil, err
 	}
 
+	var info syscall.MemoryBasicInformation
+	err = syscall.VirtualQuery(mapview, &info, unsafe.Sizeof(info))
+	if err != nil {
+		return nil, os.NewSyscallError("VirtualQuery", err)
+	}
+	// data = unsafe.Slice((*byte)(unsafe.Pointer(mapview)), int(info.RegionSize))
 	// Use unsafe to turn addr into a []byte.
-	data = PtrToBytes(mapview, length)
-
+	// data = PtrToBytes(mapview, int(info.RegionSize))
+	bufHdr := (*unsafemap.Slice)(unsafe.Pointer(&data))
+	bufHdr.Data = unsafe.Pointer(mapview)
+	bufHdr.Len = int(size)
+	bufHdr.Cap = int(size)
 	// Register mapping in m and return it.
 	p := &data[cap(data)-1]
 	m.Lock()
@@ -82,6 +102,7 @@ func (m *mmapper) Munmap(data []byte) (err error) {
 	if len(data) == 0 || len(data) != cap(data) {
 		return EINVAL
 	}
+
 	// Find the base of the mapping.
 	p := &data[cap(data)-1]
 	m.Lock()
@@ -91,12 +112,13 @@ func (m *mmapper) Munmap(data []byte) (err error) {
 		return EINVAL
 	}
 	// Unmap the memory and update m.
-	if err := m.munmap(BytesToPtr(data), uintptr(len(b.data))); err != nil {
-		return err
+	if err := m.munmap(unsafemap.BytesToPtr(data), uintptr(len(b.data))); err != nil {
+		_ = b.close()
+		return fmt.Errorf("error unmapping handle: %s", err)
 	}
 	err = b.close()
 	if err != nil {
-		return err
+		return fmt.Errorf("error closing handle: %s", err)
 	}
 	delete(m.active, p)
 	return nil
@@ -148,9 +170,8 @@ func mmap(addr uintptr, length uintptr, prot int, flags int, fd int, offset int6
 	// that we wish to allow to be mappable. It is the sum of
 	// the length the user requested, plus the offset where that length
 	// is starting from. This does not map the data into memory.
-	maxSizeHigh := uint32((offset + int64(length)) >> 32)
-	maxSizeLow := uint32((offset + int64(length)) & 0xFFFFFFFF)
-	h, errno := syscall.CreateFileMapping(Handle(fd), makeInheritSa(), flProtect, maxSizeHigh, maxSizeLow, nil)
+	low, high := uint32(length), uint32(length>>32)
+	h, errno := syscall.CreateFileMapping(Handle(fd), makeInheritSa(), flProtect, high, low, nil)
 	if errno != nil {
 		return handle, xaddr, os.NewSyscallError("CreateFileMapping", errno)
 	}
@@ -158,9 +179,9 @@ func mmap(addr uintptr, length uintptr, prot int, flags int, fd int, offset int6
 	// defer syscall.CloseHandle(h)
 	// Actually map a view of the data into memory. The view's size
 	// is the length the user requested.
-	fileOffsetHigh := uint32(offset >> 32)
-	fileOffsetLow := uint32(offset & 0xFFFFFFFF)
-	ptr, errno := syscall.MapViewOfFile(h, dwDesiredAccess, fileOffsetHigh, fileOffsetLow, uintptr(length))
+	// fileOffsetHigh := uint32(offset >> 32)
+	// fileOffsetLow := uint32(offset & 0xFFFFFFFF)
+	ptr, errno := syscall.MapViewOfFile(h, dwDesiredAccess, 0, 0, length)
 	if errno != nil {
 		_ = syscall.CloseHandle(h)
 		return handle, xaddr, os.NewSyscallError("MapViewOfFile", errno)
@@ -170,7 +191,7 @@ func mmap(addr uintptr, length uintptr, prot int, flags int, fd int, offset int6
 }
 
 func flush(fd syscall.Handle, data []byte, len uintptr) (err error) {
-	errno := syscall.FlushViewOfFile(BytesToPtr(data), len)
+	errno := syscall.FlushViewOfFile(unsafemap.BytesToPtr(data), len)
 	if errno != nil {
 		return os.NewSyscallError("FlushViewOfFile", errno)
 	}
@@ -193,14 +214,6 @@ func makeInheritSa() *syscall.SecurityAttributes {
 	return &sa
 }
 
-// type closer struct {
-// 	handle Handle
-// }
-//
-// func (c *closer) Close() error {
-// 	return syscall.CloseHandle(c.handle)
-// }
-
 func closeHandle(handle uintptr) func() error {
 	return func() error {
 		err := syscall.CloseHandle(Handle(handle))
@@ -209,4 +222,17 @@ func closeHandle(handle uintptr) func() error {
 		}
 		return nil
 	}
+}
+
+func openFileMapping(access uint32, bInheritHandle bool, lpName *uint16) (handle Handle, err error) {
+	var _p0 uint32
+	if bInheritHandle {
+		_p0 = 1
+	}
+	r0, _, e1 := sys.SyscallN(procOpenFileMappingW.Addr(), uintptr(access), uintptr(_p0), uintptr(unsafe.Pointer(lpName)))
+	handle = Handle(r0)
+	if handle == 0 {
+		err = e1
+	}
+	return
 }

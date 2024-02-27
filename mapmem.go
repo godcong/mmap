@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 )
 
 type MapMem struct {
@@ -32,6 +33,9 @@ func (f *MapMem) Seek(offset int64, whence int) (int64, error) {
 	if f.off < 0 {
 		return 0, fmt.Errorf("MapFile: negative position")
 	}
+	if debug {
+		slog.Info("Seek", "len", len(f.data), "off", f.off)
+	}
 	return int64(f.off), nil
 }
 
@@ -44,8 +48,15 @@ func (f *MapMem) WriteByte(c byte) error {
 		return ErrBadFileDesc
 	}
 	if f.off >= len(f.data) {
+		if debug {
+			slog.Error("MapFile.WriteByte", "err", ErrShortWrite, "len", len(f.data), "off", f.off)
+		}
 		return ErrShortWrite
 	}
+	if debug {
+		slog.Info("WriteByte", "len", len(f.data), "off", f.off)
+	}
+
 	f.data[f.off] = c
 	f.off++
 	return nil
@@ -146,11 +157,11 @@ func (f *MapMem) IsOwner() bool {
 }
 
 func OpenMem(id int, size int) (*MapMem, error) {
-	return openMem(id, size)
+	return openMapMem(id, size)
 }
 
 func OpenMemS(id int) (*MapMem, error) {
-	return openMem(id, int(pageSize))
+	return openMapMem(id, 0)
 }
 
 var (
