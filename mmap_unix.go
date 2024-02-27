@@ -7,12 +7,12 @@ import (
 )
 
 const (
-	PROT_NONE      = syscall.PROT_NONE
-	PROT_READ      = syscall.PROT_READ
-	PROT_WRITE     = syscall.PROT_WRITE
-	PROT_EXEC      = syscall.PROT_EXEC
-	PROT_GROWSDOWN = syscall.PROT_GROWSDOWN
-	PROT_GROWSUP   = syscall.PROT_GROWSUP
+	PROT_NONE  = syscall.PROT_NONE
+	PROT_READ  = syscall.PROT_READ
+	PROT_WRITE = syscall.PROT_WRITE
+	PROT_EXEC  = syscall.PROT_EXEC
+	// PROT_GROWSDOWN = syscall.PROT_GROWSDOWN
+	// PROT_GROWSUP   = syscall.PROT_GROWSUP
 
 	MAP_SHARED = syscall.MAP_SHARED
 )
