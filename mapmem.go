@@ -8,6 +8,7 @@ import (
 )
 
 const (
+	// MapMemKeyInvalid share memory id will return 0,so we set the invalid id to -1
 	MapMemKeyInvalid = -1
 )
 
