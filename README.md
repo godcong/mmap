@@ -29,6 +29,11 @@ See [`examples`](https://github.com/godcong/mmap/blob/main/examples) folder
 - launchpad.net/gommap
 - github.com/edsrzf/mmap-go
 
+## Plan
+
+-[ ] TCP transmits data through shared memory between threads
+-[ ] Other
+
 ## License
 
 This Project used MIT and BSD license.
