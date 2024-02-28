@@ -16,5 +16,9 @@ func init() {
 
 // GenKey generates a random int id, not including 0.
 func GenKey() int {
+	// k := r.Intn(math.MaxInt-1) + 1
+	// if debug {
+	// 	Log().Info("GenKey", "key", k)
+	// }
 	return r.Intn(math.MaxInt-1) + 1
 }

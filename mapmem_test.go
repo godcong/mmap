@@ -46,7 +46,7 @@ func TestOpenMemFile(t *testing.T) {
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			w, err := OpenMem(0, len([]byte("hello world!\nbye.\n")))
+			w, err := OpenMem(MapMemKeyInvalid, len([]byte("hello world!\nbye.\n")))
 			if err != nil {
 				t.Fatalf("could not open file: %+v", err)
 			}
@@ -56,7 +56,7 @@ func TestOpenMemFile(t *testing.T) {
 				t.Fatalf("could not write: %+v", err)
 			}
 			if debug {
-				Log().Info("data write", "data", string(w.data), "len", len(w.data), "off", w.off, "addr", unsafemap.BytesToPtr(w.data))
+				Log().Info("data write", "data", string(w.data), "len", len(w.data), "off", w.off, "id", w.ID(), "addr", unsafemap.BytesToPtr(w.data))
 			}
 			if got, want := display(w.ID(), len("hello world!\nbye.\n")), []byte("hello world!\nbye.\n"); !bytes.Equal(got, want) {
 				t.Fatalf("invalid content:\ngot= %q\nwant=%q\n", got, want)

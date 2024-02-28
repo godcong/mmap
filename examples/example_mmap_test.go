@@ -52,31 +52,31 @@ func ExampleOpenFile_read() {
 }
 
 func ExampleOpenFile_readwrite() {
-	f, err := os.CreateTemp("", "mmap-")
+	tmp, err := os.CreateTemp("", "mmap-")
 	if err != nil {
 		log.Fatalf("could not create tmp file: %+v", err)
 	}
-	defer f.Close()
-	defer os.Remove(f.Name())
+	defer tmp.Close()
+	defer os.Remove(tmp.Name())
 
-	_, err = f.Write([]byte("hello world!"))
+	_, err = tmp.Write([]byte("hello world!"))
 	if err != nil {
 		log.Fatalf("could not write data: %+v", err)
 	}
 
-	err = f.Close()
+	err = tmp.Close()
 	if err != nil {
 		log.Fatalf("could not close file: %+v", err)
 	}
 
-	raw, err := os.ReadFile(f.Name())
+	raw, err := os.ReadFile(tmp.Name())
 	if err != nil {
 		log.Fatalf("could not read back data: %+v", err)
 	}
 
 	fmt.Printf("%s\n", raw)
 
-	rw, err := mmap.OpenFile(f.Name(), os.O_RDWR, 0o755)
+	rw, err := mmap.OpenFile(tmp.Name(), os.O_RDWR, 0o755)
 	if err != nil {
 		log.Fatalf("could not open mmap file: %+v", err)
 	}
@@ -87,7 +87,7 @@ func ExampleOpenFile_readwrite() {
 		log.Fatalf("could not write to mmap file: %+v", err)
 	}
 
-	raw, err = os.ReadFile(f.Name())
+	raw, err = os.ReadFile(tmp.Name())
 	if err != nil {
 		log.Fatalf("could not read back data: %+v", err)
 	}
@@ -100,7 +100,7 @@ func ExampleOpenFile_readwrite() {
 }
 
 func ExampleOpenMem() {
-	w, err := mmap.OpenMemS(0)
+	w, err := mmap.OpenMemS(mmap.MapMemKeyInvalid)
 	if err != nil {
 		log.Fatalf("could not create memory: %+v", err)
 	}

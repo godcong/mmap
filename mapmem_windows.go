@@ -11,7 +11,7 @@ import (
 
 func openMapMem(id int, size int) (*MapMem, error) {
 	owner := false
-	if id == 0 {
+	if id == MapMemKeyInvalid {
 		owner = true
 		id = GenKey()
 	}

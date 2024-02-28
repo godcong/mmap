@@ -7,11 +7,9 @@ import (
 	"os"
 )
 
-var pageSize int
-
-func init() {
-	pageSize = os.Getpagesize()
-}
+const (
+	MapMemKeyInvalid = -1
+)
 
 type MapMem struct {
 	owner bool
@@ -19,6 +17,12 @@ type MapMem struct {
 	data  []byte
 	off   int
 	close func() error
+}
+
+var pageSize int
+
+func init() {
+	pageSize = os.Getpagesize()
 }
 
 func (f *MapMem) Seek(offset int64, whence int) (int64, error) {

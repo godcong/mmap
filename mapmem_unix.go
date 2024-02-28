@@ -14,24 +14,32 @@ func openMapMem(id int, size int) (*MapMem, error) {
 	owner := false
 	closer := func() error { return nil }
 	size = getPageSize(size)
-	if id == 0 {
+	if id == MapMemKeyInvalid {
 		owner = true
 	}
 	if owner {
+		k := GenKey()
 		if debug {
-			Log().Info("CreateMapMem", "size", size)
+			Log().Info("CreateMapMem", "id", id, "key", k, "size", size)
 		}
-		id, err = syscall.SysvShmGet(GenKey(), size, syscall.IPC_CREAT|syscall.IPC_EXCL|0o600)
+
+		id, err = syscall.SysvShmGet(k, size, syscall.IPC_CREAT|syscall.IPC_EXCL|0o600)
 		if err != nil {
 			return nil, os.NewSyscallError("SysvShmGet", err)
+		}
+
+		if debug {
+			Log().Info("OpenMapMem", "id", id, "key", k)
 		}
 		closer = closeShm(id)
 	} else {
 		if debug {
-			Log().Info("OpenMapMem", "size", size)
+			Log().Info("OpenMapMem", "id", id, "size", size)
 		}
 	}
-
+	if debug {
+		Log().Info("MapMem Attach", "id", id)
+	}
 	data, err := syscall.SysvShmAttach(id, 0, 0)
 	if err != nil {
 		return nil, os.NewSyscallError("SysvShmAttach", err)
