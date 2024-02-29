@@ -31,9 +31,9 @@ See [`examples`](https://github.com/godcong/mmap/blob/main/examples) folder
 
 ## Plan
 
-- [ ] TCP transmits data through shared memory between threads
-
-- [ ] Turn off shared memory more elegantly
+<input type="checkbox" disabled /> TCP transmits data through shared memory between threads.
+<br/>
+<input type="checkbox" disabled /> Turn off shared memory more elegantly.
 
 ## License
 
