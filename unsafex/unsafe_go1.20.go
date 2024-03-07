@@ -1,4 +1,4 @@
-package unsafemap
+package unsafex
 
 import (
 	"unsafe"
@@ -11,7 +11,11 @@ type Slice struct {
 }
 
 func ptrToBytes(ptr uintptr, n int) []byte {
-	return *(*[]byte)(unsafe.Pointer(&Slice{Data: unsafe.Pointer(ptr), Len: n, Cap: n}))
+	return *(*[]byte)(unsafe.Pointer(&Slice{
+		Data: unsafe.Pointer(ptr),
+		Len:  n,
+		Cap:  n,
+	}))
 }
 
 func bytesToPoint(data []byte) *byte {

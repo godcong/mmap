@@ -1,4 +1,4 @@
-package mmap
+package mmap_test
 
 import (
 	"bytes"
@@ -8,23 +8,20 @@ import (
 	"testing"
 	"unsafe"
 
-	unsafemap "github.com/godcong/mmap/unsafemap"
+	"github.com/godcong/mmap"
+	"github.com/godcong/mmap/unsafex"
 )
 
-func TestOpenMemFile(t *testing.T) {
+func TestMemFileWrite(t *testing.T) {
+	log := mmap.Log().WithGroup("mapmem")
 	display := func(id int, sz int) []byte {
 		t.Helper()
-		s, err := OpenMem(id, sz)
+		s, err := mmap.OpenMem(id, sz)
 		if err != nil {
-			if debug {
-				Log().Error("OpenMem", "err", err)
-			}
+			log.Error("OpenMem", "err", err)
 			return nil
 		}
 		defer s.Close()
-		if debug {
-			Log().Info("display", "data", string(s.data), "len", len(s.data), "off", s.off, "addr", unsafemap.BytesToPtr(s.data))
-		}
 		raw, err := io.ReadAll(s)
 		if err != nil {
 			t.Fatalf("could not read file %d: %+v", id, err)
@@ -46,61 +43,57 @@ func TestOpenMemFile(t *testing.T) {
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			w, err := OpenMem(MapMemKeyInvalid, len([]byte("hello world!\nbye.\n")))
+			w, err := mmap.OpenMem(mmap.MapMemKeyInvalid, len([]byte("hello world!\nbye.\n")))
 			if err != nil {
 				t.Fatalf("could not open file: %+v", err)
 			}
 			defer w.Close()
-			_, err = w.Write([]byte("hello world!\nbye.\n"))
+			var written int
+			written, err = w.Write([]byte("hello world!\nbye.\n"))
 			if err != nil {
 				t.Fatalf("could not write: %+v", err)
 			}
-			if debug {
-				Log().Info("data write", "data", string(w.data), "len", len(w.data), "off", w.off, "id", w.ID(), "addr", unsafemap.BytesToPtr(w.data))
-			}
+			log.Info("data write", "written", written, "id", w.ID())
 			if got, want := display(w.ID(), len("hello world!\nbye.\n")), []byte("hello world!\nbye.\n"); !bytes.Equal(got, want) {
 				t.Fatalf("invalid content:\ngot= %q\nwant=%q\n", got, want)
 			}
 
-			_, err = w.WriteAt([]byte("bye!\n"), 3)
+			written, err = w.WriteAt([]byte("bye!\n"), 3)
 			if err != nil {
 				t.Fatalf("could not write-at: %+v", err)
 			}
-			if debug {
-				Log().Info("data write at", "data", string(w.data), "len", len(w.data), "off", w.off)
-			}
+
+			log.Info("data write", "written", written, "id", w.ID())
 			if got, want := display(w.ID(), len("hello world!\nbye.\n")), []byte("helbye!\nrld!\nbye.\n"); !bytes.Equal(got, want) {
 				t.Fatalf("invalid content:\ngot= %q\nwant=%q\n", got, want)
 			}
 
-			_, err = w.Seek(0, io.SeekStart)
+			var seeked int64
+			seeked, err = w.Seek(0, io.SeekStart)
 			if err != nil {
 				t.Fatalf("could not seek to start: %+v", err)
 			}
+			log.Info("data seek", "seeked", seeked, "id", w.ID())
 
-			_, err = w.Write([]byte("hello world!\nbye\n"))
+			written, err = w.Write([]byte("hello world!\nbye\n"))
 			if err != nil {
 				t.Fatalf("could not write: %+v", err)
 			}
-			if debug {
-				Log().Info("data write", "data", string(w.data), "len", len(w.data), "off", w.off)
-			}
+			log.Info("data write", "written", written, "id", w.ID())
 			if got, want := display(w.ID(), len("hello world!\nbye.\n")), []byte("hello world!\nbye\n\n"); !bytes.Equal(got, want) {
 				t.Fatalf("invalid content:\ngot= %q\nwant=%q\n", got, want)
 			}
 
-			_, err = w.Seek(5, io.SeekEnd)
+			seeked, err = w.Seek(5, io.SeekEnd)
 			if err != nil {
 				t.Fatalf("could not seek from end: %+v", err)
 			}
-
+			log.Info("data seek", "seeked", seeked, "id", w.ID())
 			err = w.WriteByte('t')
 			if err != nil {
 				t.Fatalf("could not write-byte: %+v", err)
 			}
-			if debug {
-				Log().Info("data write byte", "data", string(w.data), "len", len(w.data), "off", w.off)
-			}
+			log.Info("data write byte")
 			if got, want := display(w.ID(), len("hello world!\nbye.\n")), []byte("hello world!\ntye\n\n"); !bytes.Equal(got, want) {
 				t.Fatalf("invalid content:\ngot= %q\nwant=%q\n", got, want)
 			}
@@ -130,7 +123,7 @@ func TestPointToBytes(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := unsafemap.PointToBytes(tt.args.ptr, tt.args.n); !reflect.DeepEqual(got, tt.want) {
+			if got := unsafex.PointToBytes(tt.args.ptr, tt.args.n); !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("PointToBytes() = %v, want %v", got, tt.want)
 			}
 		})
@@ -158,7 +151,7 @@ func TestBytesToPoint(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := unsafemap.BytesToPoint(tt.args.data); !reflect.DeepEqual(got, tt.want) {
+			if got := unsafex.BytesToPoint(tt.args.data); !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("BytesToPoint() = %v, want %v", got, tt.want)
 			}
 		})

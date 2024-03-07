@@ -17,14 +17,10 @@ const (
 	MAP_SHARED = syscall.MAP_SHARED
 )
 
-// Mmap maps length bytes of the file represented by the file descriptor fd into memory, starting at the byte offset.
+// Mmap description of the Go function.
 //
-// fd int - file descriptor
-// offset int64 - byte offset
-// length int - length in bytes
-// prot int - memory protection
-// flags int - mapping flags
-// []byte, error - mapped data and an error
+// Takes fd, offset, length, prot, and flags as parameters.
+// Returns data []byte and err error.
 func Mmap(fd int, offset int64, length int, prot int, flags int) (data []byte, err error) {
 	return syscall.Mmap(fd, offset, length, prot, flags)
 }

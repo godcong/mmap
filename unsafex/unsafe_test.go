@@ -1,4 +1,4 @@
-package unsafemap
+package unsafex
 
 import (
 	"reflect"

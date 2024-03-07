@@ -9,7 +9,7 @@ import (
 	sys "syscall"
 	"unsafe"
 
-	"github.com/godcong/mmap/unsafemap"
+	"github.com/godcong/mmap/unsafex"
 	syscall "golang.org/x/sys/windows"
 )
 
@@ -51,11 +51,11 @@ var mapper = &mmapper{
 	munmap: munmap,
 }
 
+// Mmap maps the requested memory.
+//
+// Parameters: fd int, offset int64, size int, prot int, flags int.
+// Returns: data []byte, err error.
 func (m *mmapper) Mmap(fd int, offset int64, size int, prot int, flags int) (data []byte, err error) {
-	// if size <= 0 {
-	// 	return nil, EINVAL
-	// }
-
 	// Map the requested memory.
 	handle, mapview, err := m.mmap(0, uintptr(size), prot, flags, fd, offset)
 	if err != nil {
@@ -67,10 +67,8 @@ func (m *mmapper) Mmap(fd int, offset int64, size int, prot int, flags int) (dat
 	if err != nil {
 		return nil, os.NewSyscallError("VirtualQuery", err)
 	}
-	// data = unsafe.Slice((*byte)(unsafe.Pointer(mapview)), int(info.RegionSize))
-	// Use unsafe to turn addr into a []byte.
-	// data = PtrToBytes(mapview, int(info.RegionSize))
-	bufHdr := (*unsafemap.Slice)(unsafe.Pointer(&data))
+
+	bufHdr := (*unsafex.Slice)(unsafe.Pointer(&data))
 	bufHdr.Data = unsafe.Pointer(mapview)
 	bufHdr.Len = int(size)
 	bufHdr.Cap = int(size)
@@ -82,6 +80,9 @@ func (m *mmapper) Mmap(fd int, offset int64, size int, prot int, flags int) (dat
 	return data, nil
 }
 
+// Munmap unmaps the memory and updates the mmapper.
+//
+// It takes a data []byte as a parameter and returns an error.
 func (m *mmapper) Munmap(data []byte) (err error) {
 	if len(data) == 0 || len(data) != cap(data) {
 		return EINVAL
@@ -96,7 +97,7 @@ func (m *mmapper) Munmap(data []byte) (err error) {
 		return EINVAL
 	}
 	// Unmap the memory and update m.
-	if err := m.munmap(unsafemap.BytesToPtr(data), uintptr(len(b.data))); err != nil {
+	if err := m.munmap(unsafex.BytesToPtr(data), uintptr(len(b.data))); err != nil {
 		_ = b.close()
 		return fmt.Errorf("error unmapping handle: %s", err)
 	}
@@ -108,6 +109,10 @@ func (m *mmapper) Munmap(data []byte) (err error) {
 	return nil
 }
 
+// Flush description of the Go function.
+//
+// data []byte, sz uintptr.
+// error.
 func (m *mmapper) Flush(data []byte, sz uintptr) (err error) {
 	p := &data[cap(data)-1]
 	mapper.Lock()
@@ -134,16 +139,13 @@ func Flush(data []byte, size uintptr) (err error) {
 func mmap(addr uintptr, length uintptr, prot int, flags int, fd int, offset int64) (handle, xaddr uintptr, err error) {
 	flProtect := uint32(syscall.PAGE_READONLY)
 	dwDesiredAccess := uint32(syscall.FILE_MAP_READ)
-	// writable := false
 	switch {
 	case prot&PROT_COPY != 0:
 		flProtect = syscall.PAGE_WRITECOPY
 		dwDesiredAccess = syscall.FILE_MAP_COPY
-		// writable = true
 	case prot&PROT_WRITE != 0:
 		flProtect = syscall.PAGE_READWRITE
 		dwDesiredAccess = syscall.FILE_MAP_WRITE
-		// writable = true
 	}
 	if prot&PROT_EXEC != 0 {
 		flProtect <<= 4
@@ -159,8 +161,6 @@ func mmap(addr uintptr, length uintptr, prot int, flags int, fd int, offset int6
 	if errno != nil {
 		return handle, xaddr, os.NewSyscallError("CreateFileMapping", errno)
 	}
-
-	// defer syscall.CloseHandle(h)
 	// Actually map a view of the data into memory. The view's size
 	// is the length the user requested.
 	// fileOffsetHigh := uint32(offset >> 32)
@@ -175,7 +175,7 @@ func mmap(addr uintptr, length uintptr, prot int, flags int, fd int, offset int6
 }
 
 func flush(fd syscall.Handle, data []byte, len uintptr) (err error) {
-	errno := syscall.FlushViewOfFile(unsafemap.BytesToPtr(data), len)
+	errno := syscall.FlushViewOfFile(unsafex.BytesToPtr(data), len)
 	if errno != nil {
 		return os.NewSyscallError("FlushViewOfFile", errno)
 	}
@@ -208,7 +208,7 @@ func closeHandle(handle uintptr) func() error {
 	}
 }
 
-func openFileMapping(access uint32, bInheritHandle bool, lpName *uint16) (handle Handle, err error) {
+func syscallOpenFileMapping(access uint32, bInheritHandle bool, lpName *uint16) (handle Handle, err error) {
 	var _p0 uint32
 	if bInheritHandle {
 		_p0 = 1

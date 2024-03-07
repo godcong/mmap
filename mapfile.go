@@ -38,6 +38,10 @@ func (f *MapFile) Stat() (os.FileInfo, error) {
 	return f.fd.Stat()
 }
 
+func (f *MapFile) Writable() bool {
+	return f.writable
+}
+
 // Read implements the io.Reader interface.
 func (f *MapFile) Read(p []byte) (int, error) {
 	if f == nil {
@@ -91,21 +95,21 @@ func (f *MapFile) Write(p []byte) (int, error) {
 		return 0, ErrInvalid
 	}
 
-	if !f.writable {
+	if !f.Writable() {
 		return 0, ErrBadFileDesc
 	}
 	if f.off >= len(f.data) {
-		if debug {
-			Log().Error("MapFile.Write", "err", ErrShortWrite, "len", len(f.data), "off", f.off)
-		}
+
+		Log().Error("MapFile.Write error", "err", ErrShortWrite, "len", len(f.data), "off", f.off)
+
 		return 0, ErrShortWrite
 	}
 	n := copy(f.data[f.off:], p)
 	f.off += n
 	if len(p) > n {
-		if debug {
-			Log().Error("MapFile.Write2", "err", ErrShortWrite, "len", len(f.data), "off", f.off)
-		}
+
+		Log().Error("MapFile.Write written error", "err", ErrShortWrite, "len", len(f.data), "off", f.off)
+
 		return n, ErrShortWrite
 	}
 	return n, nil
@@ -117,13 +121,13 @@ func (f *MapFile) WriteByte(c byte) error {
 		return ErrInvalid
 	}
 
-	if !f.writable {
+	if !f.Writable() {
 		return ErrBadFileDesc
 	}
 	if f.off >= len(f.data) {
-		if debug {
-			Log().Error("MapFile.WriteByte", "err", ErrShortWrite, "len", len(f.data), "off", f.off)
-		}
+
+		Log().Error("MapFile.WriteByte", "err", ErrShortWrite, "len", len(f.data), "off", f.off)
+
 		return ErrShortWrite
 	}
 	f.data[f.off] = c
@@ -137,7 +141,7 @@ func (f *MapFile) WriteAt(p []byte, off int64) (int, error) {
 		return 0, ErrInvalid
 	}
 
-	if !f.writable {
+	if !f.Writable() {
 		return 0, ErrBadFileDesc
 	}
 	if f.data == nil {
@@ -148,9 +152,9 @@ func (f *MapFile) WriteAt(p []byte, off int64) (int, error) {
 	}
 	n := copy(f.data[off:], p)
 	if n < len(p) {
-		if debug {
-			Log().Error("MapFile.WriteByte", "err", ErrShortWrite, "len", len(f.data), "off", f.off)
-		}
+
+		Log().Error("MapFile.WriteByte error", "err", ErrShortWrite, "len", len(f.data), "off", f.off)
+
 		return n, ErrShortWrite
 	}
 	return n, nil
@@ -227,9 +231,7 @@ func openMapFile(filename string, mode int, perm os.FileMode, size int) (*MapFil
 	}
 
 	if fsize == 0 && !writable {
-		if debug {
-			Log().Warn("MapFile.Open as read only", "size", size)
-		}
+		Log().Warn("MapFile.Open as read only", "size", size)
 		return &MapFile{writable: writable}, nil
 	}
 	if fsize < 0 {
@@ -241,9 +243,7 @@ func openMapFile(filename string, mode int, perm os.FileMode, size int) (*MapFil
 
 	data, err := Mmap(int(f.Fd()), 0, int(fsize), prot, MAP_SHARED)
 	if err != nil {
-		if debug {
-			Log().Error("MapFile.Open", "err", err, "size", size, "datalen", len(data), "cap", cap(data))
-		}
+		Log().Error("MapFile.Open error", "err", err, "size", size, "datalen", len(data), "cap", cap(data))
 		return nil, err
 	}
 

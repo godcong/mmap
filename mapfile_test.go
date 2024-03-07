@@ -1,4 +1,4 @@
-package mmap
+package mmap_test
 
 import (
 	"bytes"
@@ -6,22 +6,24 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/godcong/mmap"
 )
 
 func TestOpen(t *testing.T) {
 	const filename = "mapfile_test.go"
 	for _, tc := range []struct {
 		name string
-		open func(fname string) (*MapFile, error)
+		open func(fname string) (*mmap.MapFile, error)
 	}{
 		{
 			name: "open",
-			open: Open,
+			open: mmap.Open,
 		},
 		{
 			name: "open-read-only",
-			open: func(fname string) (*MapFile, error) {
-				return OpenFile(fname, os.O_RDONLY, 0o644)
+			open: func(fname string) (*mmap.MapFile, error) {
+				return mmap.OpenFile(fname, os.O_RDONLY, 0o644)
 			},
 		},
 	} {
@@ -37,7 +39,7 @@ func TestOpen(t *testing.T) {
 				t.Fatalf("could not stat file: %+v", err)
 			}
 
-			if r.writable {
+			if r.Writable() {
 				t.Fatal("not open for reading")
 			}
 
@@ -148,7 +150,7 @@ func TestOpen(t *testing.T) {
 				if err == nil {
 					t.Fatal("expected an error")
 				}
-				if got, want := err, ErrBadFileDesc; got.Error() != want.Error() {
+				if got, want := err, mmap.ErrBadFileDesc; got.Error() != want.Error() {
 					t.Fatalf("invalid error:\ngot= %+v\nwant=%+v", got, want)
 				}
 			})
@@ -158,7 +160,7 @@ func TestOpen(t *testing.T) {
 				if err == nil {
 					t.Fatal("expected an error")
 				}
-				if got, want := err, ErrBadFileDesc; got.Error() != want.Error() {
+				if got, want := err, mmap.ErrBadFileDesc; got.Error() != want.Error() {
 					t.Fatalf("invalid error:\ngot= %+v\nwant=%+v", got, want)
 				}
 			})
@@ -168,7 +170,7 @@ func TestOpen(t *testing.T) {
 				if err == nil {
 					t.Fatal("expected an error")
 				}
-				if got, want := err, ErrBadFileDesc; got.Error() != want.Error() {
+				if got, want := err, mmap.ErrBadFileDesc; got.Error() != want.Error() {
 					t.Fatalf("invalid error:\ngot= %+v\nwant=%+v", got, want)
 				}
 			})
@@ -178,7 +180,7 @@ func TestOpen(t *testing.T) {
 				if err == nil {
 					t.Fatal("expected an error")
 				}
-				if got, want := err, ErrBadFileDesc; got.Error() != want.Error() {
+				if got, want := err, mmap.ErrBadFileDesc; got.Error() != want.Error() {
 					t.Fatalf("invalid error:\ngot= %+v\nwant=%+v", got, want)
 				}
 			})
@@ -191,7 +193,8 @@ func TestOpen(t *testing.T) {
 	}
 }
 
-func TestWrite(t *testing.T) {
+func TestMapFileWrite(t *testing.T) {
+	log := mmap.Log().WithGroup("mapfile")
 	tmp, err := os.MkdirTemp("", "mmap-")
 	if err != nil {
 		t.Fatalf("could not create temp dir: %+v", err)
@@ -213,7 +216,7 @@ func TestWrite(t *testing.T) {
 	}{
 		// {
 		// 	name:  "write-only",
-		// 	flags: Write,
+		// 	flags: os.O_WRONLY,
 		// },
 		{
 			name:  "read-write",
@@ -222,44 +225,47 @@ func TestWrite(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			fname := filepath.Join(tmp, tc.name+".txt")
-			err = os.WriteFile(fname, []byte("hello world!\nbye.\n"), 0o644)
+			err = os.WriteFile(fname, []byte("hello world!\nbye.\n"), 0o755)
 			if err != nil {
 				t.Fatalf("could not seed file: %+v", err)
 			}
-
-			f, err := OpenFileS(fname, tc.flags, 0o755, len([]byte("hello world!\nbye.\n")))
+			// , len([]byte("hello world!\nbye.\n")
+			f, err := mmap.OpenFile(fname, tc.flags, 0o644)
 			if err != nil {
 				t.Fatalf("could not mmap file: %+v", err)
 			}
 			defer f.Close()
-
-			_, err = f.WriteAt([]byte("bye!\n"), 3)
+			var written int
+			written, err = f.WriteAt([]byte("bye!\n"), 3)
 			if err != nil {
 				t.Fatalf("could not write-at: %+v", err)
 			}
+			log.Info("data write", "written", written)
 
 			if got, want := display(fname), []byte("helbye!\nrld!\nbye.\n"); !bytes.Equal(got, want) {
 				t.Fatalf("invalid content:\ngot= %q\nwant=%q\n", got, want)
 			}
-
-			_, err = f.Seek(0, io.SeekStart)
+			var seeked int64
+			seeked, err = f.Seek(0, io.SeekStart)
 			if err != nil {
 				t.Fatalf("could not seek to start: %+v", err)
 			}
+			log.Info("data seek", "seeked", seeked)
 
-			_, err = f.Write([]byte("hello world!\nbye\n"))
+			written, err = f.Write([]byte("hello world!\nbye\n"))
 			if err != nil {
 				t.Fatalf("could not write: %+v", err)
 			}
-
+			log.Info("data write", "written", written)
 			if got, want := display(fname), []byte("hello world!\nbye\n\n"); !bytes.Equal(got, want) {
 				t.Fatalf("invalid content:\ngot= %q\nwant=%q\n", got, want)
 			}
 
-			_, err = f.Seek(5, io.SeekEnd)
+			seeked, err = f.Seek(5, io.SeekEnd)
 			if err != nil {
 				t.Fatalf("could not seek from end: %+v", err)
 			}
+			log.Info("data seek", "seeked", seeked)
 
 			err = f.WriteByte('t')
 			if err != nil {

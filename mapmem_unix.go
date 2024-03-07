@@ -19,27 +19,18 @@ func openMapMem(id int, size int) (*MapMem, error) {
 	}
 	if owner {
 		k := GenKey()
-		if debug {
-			Log().Info("CreateMapMem", "id", id, "key", k, "size", size)
-		}
-
 		id, err = syscall.SysvShmGet(k, size, syscall.IPC_CREAT|syscall.IPC_EXCL|0o600)
 		if err != nil {
 			return nil, os.NewSyscallError("SysvShmGet", err)
 		}
 
-		if debug {
-			Log().Info("OpenMapMem", "id", id, "key", k)
-		}
+		Log().Info("OpenMapMem with owner", "new_id", id, "key", k, "size", size)
+
 		closer = closeShm(id)
 	} else {
-		if debug {
-			Log().Info("OpenMapMem", "id", id, "size", size)
-		}
+		Log().Info("OpenMapMem with friendly", "id", id, "size", size)
 	}
-	if debug {
-		Log().Info("MapMem Attach", "id", id)
-	}
+
 	data, err := syscall.SysvShmAttach(id, 0, 0)
 	if err != nil {
 		return nil, os.NewSyscallError("SysvShmAttach", err)
