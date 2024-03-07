@@ -36,7 +36,7 @@ See [`examples`](https://github.com/godcong/mmap/blob/main/examples) folder
 
 ## Memory Map Flow
 ```mermaid
-flowchart TD
+flowchart LR
         M[Memory Map Service] -->|start| Server(Server)
         M[Memory Map Service] -->|start| Client(Client)
                 
