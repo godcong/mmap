@@ -34,29 +34,8 @@ See [`examples`](https://github.com/godcong/mmap/blob/main/examples) folder
 - [ ] TCP transmits data through shared memory between threads.
 - [ ] Turn off shared memory more elegantly.
 
-## Memory Map Flow
-```mermaid
-flowchart LR
-        M[Memory Map Service] -->|start| Server(Server)
-        M[Memory Map Service] -->|start| Client(Client)
-                
-        Server --> Listen{ListenClientDial}
-        Client --> Dial{DialToServer}
-        Listen -->|Accept| ServConn[Conn]
-        Dial --> |Success| CliConn[Conn]
-        
-        ServConn --> |init| servInit[MapMemory] 
-        CliConn --> |init| clientInit[MapMemory]
-        
-        servInit --> |write| writeMapInfo[MapInfo]
-        clientInit --> |read| readMapInfo[MapInfo]
-        
-        writeMapInfo --> |adapter| mapConn[Conn]
-        readMapInfo --> |adapter| mapConn[Conn]
-        
-        mapConn --> |write| connWrite[Write]
-        mapConn --> |read| connRead[Read]
-```
+## Memory Map Service(TODO) Flow
+See [`ServiceMemMap`](docs/ServiceMemMap.mmd)
 
 ## License
 

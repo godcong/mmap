@@ -1,0 +1,20 @@
+flowchart LR
+M[Memory Map Service] -->|start|Server(Server)
+M[Memory Map Service] -->|start|Client(Client)
+
+Server --> Listen{ListenClientDial}
+Client --> Dial{DialToServer}
+Listen -->|Accept|ServConn[NetConn]
+Dial -->|Success|CliConn[NetConn]
+
+ServConn -->|init|servInit[MapMemory]
+CliConn -->|init|clientInit[MapMemory]
+
+servInit -->|write|writeMapInfo[MapInfo]
+clientInit -->|read|readMapInfo[MapInfo]
+
+writeMapInfo -->|adapter| mapConn[MapConn]
+readMapInfo -->|adapter| mapConn[MapConn]
+
+mapConn -->|write|connWrite[Write]
+mapConn -->|read|connRead[Read]
