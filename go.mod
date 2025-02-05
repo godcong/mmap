@@ -2,4 +2,4 @@ module github.com/godcong/mmap
 
 go 1.21
 
-require golang.org/x/sys v0.29.0
+require golang.org/x/sys v0.30.0
