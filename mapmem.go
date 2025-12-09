@@ -26,7 +26,6 @@ func init() {
 }
 
 func (f *MapMem) Seek(offset int64, whence int) (int64, error) {
-	// Log().Debug("MapMem.Seek sta", "len", len(f.data), "off", f.off)
 	if f == nil {
 		return 0, ErrInvalid
 	}
@@ -44,12 +43,13 @@ func (f *MapMem) Seek(offset int64, whence int) (int64, error) {
 	if f.off < 0 {
 		return 0, fmt.Errorf("MapMem: negative position")
 	}
-	// Log().Debug("MapMem.Seek end", "len", len(f.data), "off", f.off)
+	if DebugLogEnabled() {
+		Log().Debug("MapMem.Seek", "len", len(f.data), "offset", f.off)
+	}
 	return int64(f.off), nil
 }
 
 func (f *MapMem) WriteByte(c byte) error {
-	// Log().Debug("MapMem.WriteByte sta", "len", len(f.data), "off", f.off)
 	if f == nil {
 		return ErrInvalid
 	}
@@ -58,18 +58,18 @@ func (f *MapMem) WriteByte(c byte) error {
 		return ErrBadFileDesc
 	}
 	if f.off >= len(f.data) {
-		// Log().Error("MapMem.WriteByte error", "err", ErrShortWrite, "len", len(f.data), "off", f.off)
+		if DebugLogEnabled() {
+			Log().Error("MapMem.WriteByte error", "err", ErrShortWrite, "len", len(f.data), "offset", f.off)
+		}
 		return ErrShortWrite
 	}
 
 	f.data[f.off] = c
 	f.off++
-	// Log().Debug("MapMem.WriteByte end", "len", len(f.data), "off", f.off)
 	return nil
 }
 
 func (f *MapMem) WriteAt(p []byte, off int64) (n int, err error) {
-	// Log().Debug("MapMem.WriteAt sta", "len", len(f.data), "off", f.off)
 	if f == nil {
 		return 0, ErrInvalid
 	}
@@ -82,20 +82,22 @@ func (f *MapMem) WriteAt(p []byte, off int64) (n int, err error) {
 	}
 	if off < 0 || int64(len(f.data)) < off {
 		err := fmt.Errorf("MapMem: invalid WriteAt offset %d", off)
-		// Log().Error("MapMem.WriteAt error", "err", err, "len", len(f.data), "off", f.off)
+		if DebugLogEnabled() {
+			Log().Error("MapMem.WriteAt error", "err", err, "len", len(f.data), "offset", off)
+		}
 		return 0, err
 	}
 	n = copy(f.data[off:], p)
 	if n < len(p) {
-		// Log().Error("MapMem.WriteAt error", "err", ErrShortWrite, "len", len(f.data), "off", f.off)
+		if DebugLogEnabled() {
+			Log().Error("MapMem.WriteAt error", "err", ErrShortWrite, "len", len(f.data), "written", n)
+		}
 		return n, ErrShortWrite
 	}
-	// Log().Debug("MapMem.WriteAt end", "len", len(f.data), "off", f.off)
 	return n, nil
 }
 
 func (f *MapMem) ReadByte() (byte, error) {
-	// Log().Debug("MapMem.ReadByte sta", "len", len(f.data), "off", f.off)
 	if f == nil {
 		return 0, ErrInvalid
 	}
@@ -105,36 +107,33 @@ func (f *MapMem) ReadByte() (byte, error) {
 	}
 	v := f.data[f.off]
 	f.off++
-	// Log().Debug("MapMem.ReadByte end", "len", len(f.data), "off", f.off)
 	return v, nil
 }
 
 func (f *MapMem) ReadAt(p []byte, off int64) (n int, err error) {
-	// Log().Debug("MapMem.ReadByte sta", "len", len(f.data), "off", f.off)
 	if f == nil {
 		return 0, ErrInvalid
 	}
 
 	if f.data == nil {
-		// Log().Error("MapMem.ReadAt error", "err", ErrClosed, "len", len(f.data), "off", f.off)
 		return 0, fmt.Errorf("MapMem: %v", ErrClosed)
 	}
 	if off < 0 || int64(len(f.data)) < off {
 		err := fmt.Errorf("MapMem: invalid ReadAt offset %d", off)
-		// Log().Error("MapMem.ReadAt error", "err", err, "len", len(f.data), "off", f.off)
+		if DebugLogEnabled() {
+			Log().Error("MapMem.ReadAt error", "err", err, "len", len(f.data), "offset", off)
+		}
 		return 0, err
 	}
 	n = copy(p, f.data[off:])
 	if n < len(p) {
 		return n, io.EOF
 	}
-	// Log().Debug("MapMem.ReadByte end", "len", len(f.data), "off", f.off)
 	return n, nil
 }
 
 // Read implements the io.Reader interface.
 func (f *MapMem) Read(p []byte) (int, error) {
-	// Log().Debug("MapMem.Read sta", "len", len(f.data), "off", f.off)
 	if f == nil {
 		return 0, ErrInvalid
 	}
@@ -144,13 +143,11 @@ func (f *MapMem) Read(p []byte) (int, error) {
 	}
 	n := copy(p, f.data[f.off:])
 	f.off += n
-	// Log().Debug("MapMem.Read end", "len", len(f.data), "off", f.off)
 	return n, nil
 }
 
 // Write implements the io.Writer interface.
 func (f *MapMem) Write(p []byte) (int, error) {
-	// Log().Debug("MapMem.Write sta", "len", len(f.data), "off", f.off)
 	if f == nil {
 		return 0, ErrInvalid
 	}
@@ -159,16 +156,19 @@ func (f *MapMem) Write(p []byte) (int, error) {
 		return 0, ErrBadFileDesc
 	}
 	if f.off >= len(f.data) {
-		// Log().Error("MapMem.Write error", "err", ErrShortWrite, "len", len(f.data), "off", f.off)
+		if DebugLogEnabled() {
+			Log().Error("MapMem.Write error", "err", ErrShortWrite, "len", len(f.data), "offset", f.off)
+		}
 		return 0, ErrShortWrite
 	}
 	n := copy(f.data[f.off:], p)
 	f.off += n
 	if len(p) > n {
-		// Log().Error("MapMem.Write written error", "err", ErrShortWrite, "len", len(f.data), "off", f.off)
+		if DebugLogEnabled() {
+			Log().Error("MapMem.Write written error", "err", ErrShortWrite, "len", len(f.data), "written", n)
+		}
 		return n, ErrShortWrite
 	}
-	// Log().Debug("MapMem.Write end", "len", len(f.data), "off", f.off)
 	return n, nil
 }
 
